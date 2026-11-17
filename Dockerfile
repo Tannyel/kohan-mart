@@ -27,4 +27,4 @@ RUN npm install && npm run build
 # 7. Fix folder permissions for Laravel logs & cache
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
-CMD php artisan config:cache && php artisan route:cache && php artisan migrate --force && php artisan db:seed --force && apache2-foreground
+CMD php artisan config:cache && php artisan route:cache && php artisan migrate --force && apache2-foreground
