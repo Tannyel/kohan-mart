@@ -1,17 +1,22 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
     public function up(): void
     {
-        DB::statement("ALTER TABLE orders MODIFY COLUMN status VARCHAR(30) NOT NULL DEFAULT 'pending'");
+        Schema::table('orders', function (Blueprint $table) {
+            $table->string('status', 30)->default('pending')->nullable(false)->change();
+        });
     }
 
     public function down(): void
     {
-        DB::statement("ALTER TABLE orders MODIFY COLUMN status ENUM('confirmed', 'ready_for_pickup', 'completed', 'cancelled') NOT NULL DEFAULT 'confirmed'");
+        Schema::table('orders', function (Blueprint $table) {
+            $table->string('status', 30)->default('pending')->nullable(false)->change();
+        });
     }
 };
