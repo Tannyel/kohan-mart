@@ -20,7 +20,7 @@
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         @foreach($products as $product)
             @php
-                $costPts = $product->price_minor / 100; // 1 pt = ₱1.00
+                $costPts = $product->price_minor / 100;
                 $canAfford = $user->points_balance >= $costPts;
             @endphp
             <div class="bg-white rounded-3xl border border-[#E2D8C3] p-5 shadow-sm flex flex-col justify-between transition hover:shadow-md">
@@ -69,7 +69,7 @@
     </div>
 </div>
 
-<!-- Aesthetic Wabi-Sabi Redemption Modal with Fulfillment Options & Live Quote Pins -->
+<!-- Redemption Modal with Universal Saved Pin Presets -->
 <div id="redeemModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
     <div onclick="closeRedeemModal()" class="fixed inset-0 bg-[#2E2A25]/60 backdrop-blur-xs transition-opacity"></div>
 
@@ -84,7 +84,7 @@
             </button>
         </div>
 
-        <form id="redeemForm" method="POST" class="p-6 space-y-4 text-xs overflow-y-auto flex-1">
+        <form id="redeemForm" method="POST" data-user-id="{{ $user->id }}" data-quote-url="{{ route('api.delivery.quote') }}" class="p-6 space-y-4 text-xs overflow-y-auto flex-1">
             @csrf
             <input type="hidden" id="modalProductId" name="product_id" value="">
             <input type="hidden" id="modalFulfillmentType" name="fulfillment_type" value="pickup">
@@ -128,12 +128,50 @@
                        class="w-full px-3 py-2 rounded-lg border border-[#D4C8B4] bg-white font-semibold text-[#2E2A25]">
             </div>
 
-            <!-- Lalamove Delivery Fields & Live Quote Summary Pin -->
+            <!-- Lalamove Delivery Fields & Universal Saved Pin Presets -->
             <div id="modalDeliveryFields" class="hidden bg-[#FDF4E7] rounded-xl border border-[#D9B382] p-3.5 space-y-3">
                 <div class="flex items-center justify-between">
                     <span class="font-bold text-[#7A4E1D]">🛵 Lalamove Drop-Off Details</span>
                     <span class="px-2 py-0.5 rounded bg-[#6B4E3D] text-white text-[10px]">Express Moto</span>
                 </div>
+
+                <!-- Universal Saved Pin Presets (Synced with Online Catalog Checkout) -->
+                <div class="space-y-1.5">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[10px] uppercase tracking-wider font-semibold text-[#7A4E1D]">
+                            My Saved Pin Presets:
+                        </span>
+                        <button type="button"
+                                onclick="toggleRewardSavePinForm()"
+                                class="text-[11px] font-bold text-[#3F5A45] hover:underline">
+                            + Save Current Pin
+                        </button>
+                    </div>
+
+                    <div id="rewardSavePinFormBox" class="hidden p-2.5 rounded-xl bg-white border border-[#D9B382] space-y-2">
+                        <div class="flex items-center gap-1.5">
+                            <input type="text"
+                                   id="rewardNewPinLabelInput"
+                                   maxlength="24"
+                                   placeholder="Pin label (e.g., Home, Dorm, Office)"
+                                   class="flex-1 px-2.5 py-1.5 rounded-lg border border-[#D4C8B4] bg-[#FAF7F2] text-xs font-semibold text-[#2E2A25] focus:outline-none focus:border-[#3F5A45]">
+                            <button type="button"
+                                    onclick="saveRewardCustomPinPreset()"
+                                    class="px-3 py-1.5 rounded-lg bg-[#3F5A45] text-[#FAF7F2] text-[11px] font-semibold hover:bg-[#324837] transition">
+                                Save
+                            </button>
+                            <button type="button"
+                                    onclick="toggleRewardSavePinForm(false)"
+                                    class="px-2 py-1.5 rounded-lg text-[11px] font-semibold text-[#7A6B5D] hover:text-[#2E2A25]">
+                                Cancel
+                            </button>
+                        </div>
+                        <p id="rewardSavePinErrorText" class="hidden text-[10px] font-semibold text-[#9E3B33]"></p>
+                    </div>
+
+                    <div id="rewardCustomPinPresetsList" class="flex flex-wrap gap-1.5"></div>
+                </div>
+
                 <div>
                     <label class="block font-semibold text-[#5C4E42] mb-1">Complete Delivery Address *</label>
                     <textarea name="delivery_address"
@@ -185,6 +223,11 @@
 <script>
 const redeemModal = document.getElementById('redeemModal');
 const redeemForm = document.getElementById('redeemForm');
+const rewardUserId = redeemForm.dataset.userId || 'guest';
+const rewardQuoteUrl = redeemForm.dataset.quoteUrl;
+const rewardCsrfToken = redeemForm.querySelector('input[name="_token"]').value;
+const REWARD_PIN_STORAGE_KEY = `kohanmart_saved_pins_u_${rewardUserId}`;
+
 const modalProductId = document.getElementById('modalProductId');
 const modalProductName = document.getElementById('modalProductName');
 const modalProductCost = document.getElementById('modalProductCost');
@@ -198,11 +241,134 @@ const modalDeliveryAddress = document.getElementById('modalDeliveryAddress');
 const modalDeliveryPhone = document.getElementById('modalDeliveryPhone');
 const deliveryQuoteBox = document.getElementById('deliveryQuoteBox');
 
+function loadRewardPinPresets() {
+    try {
+        const raw = localStorage.getItem(REWARD_PIN_STORAGE_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function persistRewardPinPresets(pins) {
+    localStorage.setItem(REWARD_PIN_STORAGE_KEY, JSON.stringify(pins));
+}
+
+function renderRewardPinPresets() {
+    const container = document.getElementById('rewardCustomPinPresetsList');
+    const pins = loadRewardPinPresets();
+    container.innerHTML = '';
+
+    if (pins.length === 0) {
+        const emptyHint = document.createElement('span');
+        emptyHint.className = 'text-[11px] text-[#7A6B5D] italic';
+        emptyHint.textContent = 'No saved pins yet. Enter an address below and click "+ Save Current Pin".';
+        container.appendChild(emptyHint);
+        return;
+    }
+
+    pins.forEach((pin, idx) => {
+        const chip = document.createElement('div');
+        chip.className = 'inline-flex items-center rounded-lg bg-white border border-[#D9B382] overflow-hidden shadow-2xs';
+
+        const applyBtn = document.createElement('button');
+        applyBtn.type = 'button';
+        applyBtn.className = 'px-2.5 py-1 text-[11px] font-semibold text-[#5C4E42] hover:bg-[#EFE9DC] transition flex items-center gap-1';
+        applyBtn.textContent = `📍 ${pin.label}`;
+        applyBtn.title = pin.address;
+        applyBtn.addEventListener('click', () => applyRewardPinPreset(pin));
+
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'px-1.5 py-1 text-[11px] font-bold text-[#9E3B33] hover:bg-[#F7E8E6] border-l border-[#EFE9DC] transition';
+        delBtn.textContent = '×';
+        delBtn.title = `Remove ${pin.label}`;
+        delBtn.addEventListener('click', () => deleteRewardPinPreset(idx));
+
+        chip.appendChild(applyBtn);
+        chip.appendChild(delBtn);
+        container.appendChild(chip);
+    });
+}
+
+function toggleRewardSavePinForm(forceState) {
+    const box = document.getElementById('rewardSavePinFormBox');
+    const errorText = document.getElementById('rewardSavePinErrorText');
+    const labelInput = document.getElementById('rewardNewPinLabelInput');
+
+    errorText.classList.add('hidden');
+    const shouldShow = typeof forceState === 'boolean' ? forceState : box.classList.contains('hidden');
+
+    if (shouldShow) {
+        if (modalDeliveryAddress.value.trim().length < 5) {
+            errorText.textContent = 'Enter a complete delivery address first.';
+            box.classList.remove('hidden');
+            errorText.classList.remove('hidden');
+            modalDeliveryAddress.focus();
+            return;
+        }
+        box.classList.remove('hidden');
+        labelInput.value = '';
+        labelInput.focus();
+    } else {
+        box.classList.add('hidden');
+    }
+}
+
+function saveRewardCustomPinPreset() {
+    const label = document.getElementById('rewardNewPinLabelInput').value.trim();
+    const address = modalDeliveryAddress.value.trim();
+    const phone = modalDeliveryPhone.value.trim();
+    const errorText = document.getElementById('rewardSavePinErrorText');
+
+    if (!label) {
+        errorText.textContent = 'Please enter a label (e.g., Home, Dorm, Office).';
+        errorText.classList.remove('hidden');
+        return;
+    }
+    if (address.length < 5) {
+        errorText.textContent = 'Please enter a complete delivery address first.';
+        errorText.classList.remove('hidden');
+        return;
+    }
+
+    const pins = loadRewardPinPresets();
+    const existingIndex = pins.findIndex(p => p.label.toLowerCase() === label.toLowerCase());
+    const newPin = { label, address, phone, lat: '', lng: '' };
+
+    if (existingIndex >= 0) {
+        pins[existingIndex] = newPin;
+    } else {
+        pins.push(newPin);
+    }
+
+    persistRewardPinPresets(pins);
+    renderRewardPinPresets();
+    toggleRewardSavePinForm(false);
+}
+
+function applyRewardPinPreset(pin) {
+    modalDeliveryAddress.value = pin.address || '';
+    if (pin.phone) {
+        modalDeliveryPhone.value = pin.phone;
+    }
+    fetchDeliveryQuote();
+}
+
+function deleteRewardPinPreset(index) {
+    const pins = loadRewardPinPresets();
+    pins.splice(index, 1);
+    persistRewardPinPresets(pins);
+    renderRewardPinPresets();
+}
+
 function openRedeemModal(productId, productName, costPts, redeemUrl) {
     redeemForm.action = redeemUrl;
     modalProductId.value = productId;
     modalProductName.textContent = productName;
     modalProductCost.textContent = costPts;
+    renderRewardPinPresets();
     setModalFulfillment('pickup');
     redeemModal.classList.remove('hidden');
     redeemModal.classList.add('flex');
@@ -223,6 +389,7 @@ function setModalFulfillment(mode) {
         modalPickupTime.required = false;
         modalDeliveryAddress.required = true;
         modalDeliveryPhone.required = true;
+        renderRewardPinPresets();
     } else {
         modalBtnPickup.className = 'p-3 rounded-xl border-2 text-left transition border-[#3F5A45] bg-[#E6EFE8]/60';
         modalBtnDelivery.className = 'p-3 rounded-xl border-2 text-left transition border-[#E2D8C3] bg-white hover:border-[#D9B382]';
@@ -235,7 +402,6 @@ function setModalFulfillment(mode) {
     }
 }
 
-// Live distance & fee quote generator as user types address
 let quoteTimeout = null;
 function fetchDeliveryQuote() {
     const address = modalDeliveryAddress.value.trim();
@@ -245,13 +411,26 @@ function fetchDeliveryQuote() {
     }
 
     clearTimeout(quoteTimeout);
-    quoteTimeout = setTimeout(() => {
-        const simulatedKm = (Math.abs(address.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 10) + 2.0).toFixed(2);
-        const simulatedFeeMinor = Math.round((70 + (simulatedKm * 22)) * 100);
-
-        document.getElementById('quoteDistance').textContent = `${simulatedKm} km from Project 8`;
-        document.getElementById('quoteFee').textContent = `₱${(simulatedFeeMinor / 100).toFixed(2)}`;
-        deliveryQuoteBox.classList.remove('hidden');
+    quoteTimeout = setTimeout(async () => {
+        try {
+            const res = await fetch(rewardQuoteUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': rewardCsrfToken
+                },
+                body: JSON.stringify({ delivery_address: address })
+            });
+            const data = await res.json();
+            if (res.ok && data.ok) {
+                document.getElementById('quoteDistance').textContent = `${data.distance_km} km from Project 8`;
+                document.getElementById('quoteFee').textContent = data.fee_formatted;
+                deliveryQuoteBox.classList.remove('hidden');
+            }
+        } catch (e) {
+            // Ignore transient typing errors
+        }
     }, 350);
 }
 

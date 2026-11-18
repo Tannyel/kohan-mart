@@ -4,6 +4,7 @@
 @php
     $isCancelled = $order->status === 'cancelled';
     $currentStep = $currentStage['step'] ?? 1;
+    $canSimulate = ($order->status === 'out_for_delivery' || (auth()->check() && auth()->user()->isStaff())) && $currentKey !== 'delivered';
 @endphp
 
 <div class="max-w-4xl mx-auto px-4 py-10 space-y-6">
@@ -23,7 +24,7 @@
                 <a href="{{ route('store.orders') }}" class="text-xs font-semibold text-[#6B4E3D] hover:underline">
                     ← My Orders
                 </a>
-                @if(auth()->id() === $order->user_id || auth()->user()->is_staff ?? false)
+                @if(auth()->id() === $order->user_id || auth()->user()->isStaff())
                     <a href="{{ route('orders.receipt', $order) }}"
                        class="px-4 py-2 rounded-xl bg-[#6B4E3D] text-[#FAF7F2] text-xs font-semibold hover:bg-[#573E30] transition shadow-sm">
                         Official Receipt
@@ -62,7 +63,9 @@
             <div class="rounded-2xl bg-[#F7E8E6] border-2 border-[#DFB8B3] p-5 flex items-start gap-3.5">
                 <span class="w-8 h-8 rounded-full bg-[#9E3B33] text-white flex items-center justify-center text-sm font-bold shrink-0">!</span>
                 <div class="space-y-1">
-                    <h2 class="font-bold text-sm text-[#7A2720]">Delivery Order Cancelled</h2>
+                    <h2 class="font-bold text-sm text-[#7A2720]">
+                        Delivery Order Cancelled {{ $order->cancelled_by === 'admin' ? 'by Store Admin' : ($order->cancelled_by === 'customer' ? 'by Customer' : '') }}
+                    </h2>
                     <p class="text-xs text-[#7A2720]/90 leading-relaxed">
                         @if($order->delivery_fee_forfeited)
                             This delivery was cancelled after a Lalamove rider was dispatched. The delivery fee (₱{{ number_format($order->delivery_fee_minor / 100, 2) }}) was forfeited, and ₱{{ number_format($order->refunded_minor / 100, 2) }} has been refunded.
@@ -118,8 +121,8 @@
                     @endforeach
                 </div>
 
-                <!-- Simulator Advance Button (for demo/testing when not yet delivered) -->
-                @if($currentKey !== 'delivered')
+                <!-- Simulator Advance Button (Locked until Staff sets Out for Delivery) -->
+                @if($canSimulate)
                     <div class="pt-3 border-t border-[#E2D8C3] flex flex-wrap items-center justify-between gap-3">
                         <span class="text-[11px] text-[#6B5D50]">
                             ShareLink Simulator: Advance courier milestone to test live updates.
@@ -132,17 +135,26 @@
                             </button>
                         </form>
                     </div>
+                @elseif($currentKey !== 'delivered')
+                    <div class="pt-3 border-t border-[#E2D8C3] flex flex-wrap items-center justify-between gap-3">
+                        <span class="text-[11px] text-[#7A6B5D] italic">
+                            ⏳ Courier simulator unlocks automatically once Kohan Mart staff dispatches your order (Out for Delivery).
+                        </span>
+                        <button type="button" disabled
+                                class="px-4 py-2 rounded-xl bg-[#EFE9DC] text-[#8C7A6B] text-xs font-semibold cursor-not-allowed">
+                            Awaiting Staff Dispatch
+                        </button>
+                    </div>
                 @endif
             </div>
         @endif
     </div>
 
-    <!-- 🗺️ Mock Google Maps Live Telemetry Radar Component -->
+    <!-- Mock Google Maps Live Telemetry Radar Component -->
     <x-mock-delivery-map :order="$order" />
 
     <!-- Assigned Rider & Drop-off Details -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <!-- Assigned Lalamove Rider Card -->
         <div class="bg-[#E6EFE8]/60 rounded-2xl border border-[#B8D1BE] p-4 space-y-2">
             <span class="text-[11px] uppercase tracking-wider font-bold text-[#2B4230] block">
                 Assigned Courier & Rider
@@ -191,7 +203,6 @@
             @endif
         </div>
 
-        <!-- Drop-off Destination Card -->
         <div class="bg-[#F3EDE0]/70 rounded-2xl border border-[#E2D8C3] p-4 space-y-2">
             <span class="text-[11px] uppercase tracking-wider font-bold text-[#6B4E3D] block">
                 Drop-Off Destination
@@ -256,8 +267,10 @@
 </div>
 
 @if(!$isCancelled && $currentKey !== 'delivered')
-<script id="deliveryTrackerScript" data-status-url="{{ route('api.delivery.status', $order) }}">
-    const statusEndpoint = document.getElementById('deliveryTrackerScript').dataset.statusUrl;
+<script id="deliveryTrackerScript" data-status-url="{{ route('api.delivery.status', $order) }}" data-initial-status="{{ $order->status }}">
+    const trackerScript = document.getElementById('deliveryTrackerScript');
+    const statusEndpoint = trackerScript.dataset.statusUrl;
+    const initialOrderStatus = trackerScript.dataset.initialStatus;
 
     setInterval(async () => {
         if (document.hidden) return;
@@ -267,6 +280,11 @@
             const data = await res.json();
             if (!data.ok) return;
 
+            if (data.order_status !== initialOrderStatus || data.courier_status === 'delivered') {
+                window.location.reload();
+                return;
+            }
+
             document.getElementById('liveStageBadge').textContent = data.label;
             document.getElementById('liveStepNumber').textContent = data.step;
             document.getElementById('liveStageLabel').textContent = data.label;
@@ -274,14 +292,10 @@
             if (data.updated_at) {
                 document.getElementById('liveUpdatedAt').textContent = data.updated_at;
             }
-
-            if (data.courier_status === 'delivered') {
-                window.location.reload();
-            }
         } catch (e) {
             // Silent retry
         }
-    }, 8000);
+    }, 6000);
 </script>
 @endif
 @endsection

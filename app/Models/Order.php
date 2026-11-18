@@ -14,6 +14,7 @@ class Order extends Model
         'idempotency_key',
         'order_number',
         'status',
+        'cancelled_by',
         'fulfillment_type',
         'payment_method',
         'is_paid',

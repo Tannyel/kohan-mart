@@ -5,11 +5,11 @@ namespace App\Http\Controllers;
 use App\Mail\OtpVerificationMail;
 use App\Models\PointTransaction;
 use App\Models\User;
+use App\Services\BrevoMailer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 
 class AuthController extends Controller
 {
@@ -33,7 +33,6 @@ class AuthController extends Controller
                 ->onlyInput('email');
         }
 
-        // Require OTP verification for customer accounts not yet verified
         if (!$user->isStaff() && is_null($user->email_verified_at)) {
             $this->generateAndSendOtp($user);
             session(['pending_verification_user_id' => $user->id]);
@@ -128,7 +127,6 @@ class AuthController extends Controller
             return back()->withErrors(['otp_code' => 'That verification code has expired. Click "Resend Code" for a new one.']);
         }
 
-        // Activate account & credit +20 Welcome Points
         $welcomeBonus = 20.00;
 
         $user->update([
@@ -187,11 +185,15 @@ class AuthController extends Controller
             'otp_expires_at' => now()->addMinutes(10),
         ]);
 
-        try {
-            Mail::to($user->email)->send(new OtpVerificationMail($user->name, $code));
-        } catch (\Throwable $e) {
-            Log::warning("OTP email failed for {$user->email} (Code: {$code}): " . $e->getMessage());
-            session()->flash('otp_fallback_notice', "Mail delivery notice: If email is delayed, your verification code is {$code}.");
+        $sent = BrevoMailer::sendMailable(
+            $user->email,
+            $user->name,
+            new OtpVerificationMail($user->name, $code)
+        );
+
+        if (!$sent) {
+            Log::warning("OTP email failed via Brevo for {$user->email}");
+            session()->flash('error', 'We could not deliver the verification email right now. Please click "Resend Code" in a moment.');
         }
     }
 }

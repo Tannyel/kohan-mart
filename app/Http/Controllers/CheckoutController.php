@@ -8,12 +8,12 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\PointTransaction;
 use App\Models\Product;
+use App\Services\BrevoMailer;
 use App\Services\DeliveryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 class CheckoutController extends Controller
@@ -192,13 +192,13 @@ class CheckoutController extends Controller
 
         session()->forget('cart');
 
-        try {
-            $result->load('user');
-            if ($result->user?->email) {
-                Mail::to($result->user->email)->send(new OrderStatusMail($result));
-            }
-        } catch (\Throwable $e) {
-            Log::warning("Checkout confirmation email failed for {$result->order_number}: " . $e->getMessage());
+        $result->load('user');
+        if ($result->user?->email) {
+            BrevoMailer::sendMailable(
+                $result->user->email,
+                $result->user->name,
+                new OrderStatusMail($result)
+            );
         }
 
         $redirectUrl = route('orders.receipt', $result);
@@ -219,9 +219,6 @@ class CheckoutController extends Controller
         return redirect($redirectUrl)->with('success', $successMessage);
     }
 
-    /**
-     * Customer self-service cancellation (blocked once a Lalamove driver is assigned).
-     */
     public function cancel(Order $order)
     {
         if ($order->user_id !== Auth::id()) {
@@ -271,7 +268,7 @@ class CheckoutController extends Controller
 
             $order->update([
                 'status' => 'cancelled',
-                'cancelled_by' => 'customer', // <-- Granular audit label
+                'cancelled_by' => 'customer',
                 'courier_status' => $order->isDelivery() ? 'cancelled' : null,
                 'refunded_minor' => $order->total_minor,
                 'delivery_fee_forfeited' => false,
@@ -285,30 +282,26 @@ class CheckoutController extends Controller
             ]);
         });
 
-        try {
-            $order->refresh()->load('user');
-            if ($order->user?->email) {
-                Mail::to($order->user->email)->send(new OrderStatusMail($order));
-            }
-        } catch (\Throwable $e) {
-            Log::warning("Cancellation email failed for {$order->order_number}: " . $e->getMessage());
+        $order->refresh()->load('user');
+        if ($order->user?->email) {
+            BrevoMailer::sendMailable(
+                $order->user->email,
+                $order->user->name,
+                new OrderStatusMail($order)
+            );
         }
 
         return back()->with('success', "Order {$order->order_number} has been cancelled and a full refund of ₱" . number_format($order->total_minor / 100, 2) . " has been initiated.");
     }
 
-    /**
-     * Display order receipt for authenticated user or admin.
-     */
     public function receipt(Order $order)
     {
-        if ($order->user_id !== Auth::id() && !(Auth::user()->is_admin ?? false)) {
+        if ($order->user_id !== Auth::id() && !(Auth::user()->isStaff() || (Auth::user()->is_admin ?? false))) {
             abort(403);
         }
 
         $order->load(['items.product', 'user']);
 
-        // Create currency formatter for minor units (e.g. 54900 -> ₱549.00)
         $formatter = new class {
             public function format($minorAmount)
             {
@@ -324,6 +317,6 @@ class CheckoutController extends Controller
             return view('orders.receipt', compact('order', 'formatter'));
         }
 
-        return redirect()->route('orders.show', $order);
+        return redirect()->route('store.orders');
     }
 }

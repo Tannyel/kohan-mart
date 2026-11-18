@@ -4,10 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Mail\OrderStatusMail;
 use App\Models\Order;
+use App\Services\BrevoMailer;
 use App\Services\DeliveryService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Auth;
 
 class DeliveryController extends Controller
 {
@@ -87,6 +87,17 @@ class DeliveryController extends Controller
             return back()->with('error', 'Cancelled orders cannot progress in delivery.');
         }
 
+        $isStaff = Auth::check() && Auth::user()->isStaff();
+
+        // Gate customer simulator until staff marks order "Out for Delivery"
+        if (!$isStaff && $order->status !== 'out_for_delivery') {
+            $msg = 'Courier simulation is locked until Kohan Mart staff dispatches your order (Out for Delivery).';
+            if ($request->expectsJson()) {
+                return response()->json(['ok' => false, 'message' => $msg], 403);
+            }
+            return back()->with('error', $msg);
+        }
+
         $keys = array_keys(self::STAGES);
         $currentKey = $order->courier_status ?: 'order_placed';
 
@@ -112,13 +123,13 @@ class DeliveryController extends Controller
         ]);
 
         if ($previousOrderStatus !== $orderStatus) {
-            try {
-                $order->refresh()->load('user');
-                if ($order->user?->email) {
-                    Mail::to($order->user->email)->send(new OrderStatusMail($order));
-                }
-            } catch (\Throwable $e) {
-                Log::warning("Delivery status email failed for {$order->order_number}: " . $e->getMessage());
+            $order->refresh()->load('user');
+            if ($order->user?->email) {
+                BrevoMailer::sendMailable(
+                    $order->user->email,
+                    $order->user->name,
+                    new OrderStatusMail($order)
+                );
             }
         }
 

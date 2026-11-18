@@ -9,14 +9,13 @@ use App\Models\PointTransaction;
 use App\Models\Product;
 use App\Models\SiteSetting;
 use App\Models\User;
+use App\Services\BrevoMailer;
 use App\Services\Money\PhpMoneyFormatter;
 use App\Services\Money\SymbolStrategy;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rules\Password;
 
 class StaffController extends Controller
@@ -143,9 +142,7 @@ class StaffController extends Controller
                 $deliveryFeeForfeited = $order->delivery_fee_forfeited;
                 $stockReturned = $order->stock_returned;
 
-                // Handle cancellation transitions
                 if ($previousStatus !== 'cancelled' && $newStatus === 'cancelled') {
-                    // 1. Physical Inventory Check:
                     if ($order->hasLeftStore()) {
                         $stockReturned = false;
                         $statusNote .= ' Stock held pending physical rider return to shelf.';
@@ -159,7 +156,6 @@ class StaffController extends Controller
                         $statusNote .= ' Inventory restored immediately.';
                     }
 
-                    // 2. Anti-Troll Delivery Fee Liability:
                     $courierAssignedOrEnRoute = $order->isDelivery()
                         && ($order->courier_status ?? 'order_placed') !== 'order_placed';
 
@@ -173,7 +169,6 @@ class StaffController extends Controller
                         $statusNote .= ' Full refund (₱' . number_format($refundedMinor / 100, 2) . ').';
                     }
 
-                    // 3. Loyalty Points Refund & Earned Points Reversal
                     if ($order->user) {
                         if ($order->points_used > 0) {
                             $order->user->increment('points_balance', $order->points_used);
@@ -216,7 +211,7 @@ class StaffController extends Controller
 
                 $order->update([
                     'status' => $newStatus,
-                    'cancelled_by' => $newStatus === 'cancelled' ? 'admin' : $order->cancelled_by, // <-- Granular audit label
+                    'cancelled_by' => $newStatus === 'cancelled' ? 'admin' : $order->cancelled_by,
                     'courier_status' => $courierStatus,
                     'is_paid' => true,
                     'paid_at' => $order->paid_at ?? now(),
@@ -234,13 +229,13 @@ class StaffController extends Controller
         }
 
         if ($previousStatus !== $newStatus && in_array($newStatus, ['confirmed', 'ready_for_pickup', 'out_for_delivery', 'completed', 'cancelled'])) {
-            try {
-                $order->refresh()->load('user');
-                if ($order->user?->email) {
-                    Mail::to($order->user->email)->send(new OrderStatusMail($order));
-                }
-            } catch (\Throwable $e) {
-                Log::warning("Order status email failed for {$order->order_number}: " . $e->getMessage());
+            $order->refresh()->load('user');
+            if ($order->user?->email) {
+                BrevoMailer::sendMailable(
+                    $order->user->email,
+                    $order->user->name,
+                    new OrderStatusMail($order)
+                );
             }
         }
 
@@ -254,9 +249,6 @@ class StaffController extends Controller
             ->with('success', "Order {$order->order_number} updated to {$displayLabel}.{$statusNote}");
     }
 
-    /**
-     * Confirm physical return of items from Lalamove rider back to the Project 8 shelf.
-     */
     public function confirmStockReturn(Request $request, Order $order)
     {
         if (!$order->isAwaitingStockReturn()) {
