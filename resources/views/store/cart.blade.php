@@ -206,14 +206,14 @@
                     </div>
 
                     <!-- MODE A: Store Pickup -->
-                    <div id="pickupFieldsSection" class="bg-[#FDF4E7] rounded-2xl border-2 border-[#D9B382] p-4 space-y-2 shadow-sm {{ $initialFulfillment === 'delivery' ? 'hidden' : '' }}">
-                        <div class="flex items-center justify-between">
+                    <div id="pickupFieldsSection" class="bg-[#FDF4E7] rounded-2xl border-2 border-[#D9B382] p-4 space-y-2.5 shadow-sm {{ $initialFulfillment === 'delivery' ? 'hidden' : '' }}">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
                             <label for="pickup_scheduled_at" class="text-xs font-bold text-[#6B4E3D] flex items-center gap-1.5">
                                 <span>📅</span>
-                                <span>Scheduled Pickup Date & Time <span class="text-[#9E3B33]">*</span></span>
+                                <span>Pickup Date & Time <span class="text-[#9E3B33]">*</span></span>
                             </label>
-                            <span class="px-2 py-0.5 rounded-full {{ $hasPerishables ? 'bg-[#9E3B33]' : 'bg-[#6B4E3D]' }} text-[#FAF7F2] text-[10px] font-semibold uppercase tracking-wider">
-                                {{ $hasPerishables ? 'Max 1 Day (Perishable)' : 'Max 1 Week' }}
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-full {{ $hasPerishables ? 'bg-[#9E3B33]' : 'bg-[#6B4E3D]' }} text-[#FAF7F2] text-[10px] font-bold uppercase tracking-wide whitespace-nowrap shrink-0">
+                                {{ $hasPerishables ? 'Max 1 Day • Perishable' : 'Max 1 Week' }}
                             </span>
                         </div>
                         <input type="datetime-local"
@@ -236,12 +236,12 @@
 
                     <!-- MODE B: Lalamove Express Delivery -->
                     <div id="deliveryFieldsSection" class="bg-[#FDF4E7] rounded-2xl border-2 border-[#D9B382] p-4 space-y-3 shadow-sm {{ $initialFulfillment !== 'delivery' ? 'hidden' : '' }}">
-                        <div class="flex items-center justify-between">
+                        <div class="flex items-center justify-between gap-2">
                             <span class="text-xs font-bold text-[#6B4E3D] flex items-center gap-1.5">
                                 <span>🛵</span>
                                 <span>Lalamove Drop-Off Details <span class="text-[#9E3B33]">*</span></span>
                             </span>
-                            <span class="px-2 py-0.5 rounded-full bg-[#6B4E3D] text-[#FAF7F2] text-[10px] font-semibold uppercase">
+                            <span class="px-2.5 py-0.5 rounded-full bg-[#6B4E3D] text-[#FAF7F2] text-[10px] font-semibold uppercase whitespace-nowrap shrink-0">
                                 Express Moto
                             </span>
                         </div>

@@ -22,11 +22,23 @@
             <span class="text-xs uppercase tracking-widest text-[#6B4E3D] font-semibold">Admin & Store Operations</span>
             <h1 class="text-3xl font-bold text-[#2E2A25]">Kohan Mart Management Portal</h1>
         </div>
-        <a href="{{ route('staff.analytics') }}"
-           class="px-5 py-2.5 rounded-xl bg-[#3F5A45] text-[#FAF7F2] text-xs font-semibold hover:bg-[#324837] transition shadow-sm flex items-center gap-2">
-            <span>📊 AI Assisted Analytics & Forecast</span>
-            <span>→</span>
-        </a>
+        <div class="flex flex-wrap items-center gap-2.5">
+            <span class="text-[11px] text-[#7A6B5D] hidden sm:inline">
+                Synced {{ now()->format('h:i:s A') }}
+            </span>
+            <button type="button"
+                    onclick="window.location.reload()"
+                    title="Refresh latest customer orders & stock"
+                    class="px-4 py-2.5 rounded-xl bg-[#FAF7F2] border border-[#D4C8B4] text-[#2E2A25] text-xs font-semibold hover:border-[#3F5A45] hover:bg-[#E6EFE8] transition shadow-2xs flex items-center gap-1.5 cursor-pointer">
+                <span>↻</span>
+                <span>Refresh</span>
+            </button>
+            <a href="{{ route('staff.analytics') }}"
+               class="px-5 py-2.5 rounded-xl bg-[#3F5A45] text-[#FAF7F2] text-xs font-semibold hover:bg-[#324837] transition shadow-sm flex items-center gap-2">
+                <span>📊 AI Assisted Analytics & Forecast</span>
+                <span>→</span>
+            </a>
+        </div>
     </div>
 
     <!-- Summary KPI Cards -->

@@ -24,9 +24,24 @@
 @endphp
 
 <div class="max-w-5xl mx-auto px-4 py-8">
-    <div class="mb-6">
-        <h1 class="text-3xl font-bold text-[#2E2A25]">My Orders & Deliveries</h1>
-        <p class="text-sm text-[#6B5D50] mt-1">Track your store pickup reservations and Lalamove Express deliveries from Project 8, Quezon City.</p>
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
+        <div>
+            <h1 class="text-3xl font-bold text-[#2E2A25]">My Orders & Deliveries</h1>
+            <p class="text-sm text-[#6B5D50] mt-1">Track your store pickup reservations and Lalamove Express deliveries from Project 8, Quezon City.</p>
+        </div>
+
+        <div class="flex items-center gap-2.5">
+            <span class="text-[11px] text-[#7A6B5D] hidden sm:inline">
+                Updated {{ now()->format('h:i:s A') }}
+            </span>
+            <button type="button"
+                    onclick="window.location.reload()"
+                    title="Refresh order statuses"
+                    class="px-4 py-2 rounded-xl bg-white border border-[#D4C8B4] text-[#2E2A25] text-xs font-semibold hover:border-[#3F5A45] hover:bg-[#E6EFE8] transition shadow-2xs flex items-center gap-1.5 cursor-pointer">
+                <span>↻</span>
+                <span>Refresh Status</span>
+            </button>
+        </div>
     </div>
 
     <!-- Customer Order Status Filter Bar -->
