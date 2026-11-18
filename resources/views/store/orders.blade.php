@@ -156,6 +156,19 @@
                     </div>
                 @endif
 
+                <!-- Recorded Cancellation Reason & Explanation -->
+                @if($order->status === 'cancelled' && ($order->cancellation_reason || $order->cancellation_explanation))
+                    <div class="mb-4 p-3 rounded-xl bg-[#FAF7F2] border border-[#E2D8C3] text-xs text-[#4A3B31] space-y-0.5">
+                        <div>
+                            <strong>Cancellation Reason ({{ $order->cancelled_by === 'admin' ? 'Store Admin' : 'Customer' }}):</strong>
+                            {{ $order->cancellation_reason }}
+                        </div>
+                        @if($order->cancellation_explanation)
+                            <div class="text-[#5C4E42]"><strong>Explanation:</strong> {{ $order->cancellation_explanation }}</div>
+                        @endif
+                    </div>
+                @endif
+
                 <!-- Ordered Items -->
                 <ul class="text-sm text-[#5C4E42] space-y-2 mb-4">
                     @foreach($order->items as $item)
@@ -206,14 +219,13 @@
                         </a>
 
                         @if($order->canCustomerCancel())
-                            <form action="{{ route('orders.cancel', $order) }}" method="POST"
-                                  onsubmit="return confirm('Are you sure you want to cancel order {{ $order->order_number }}?')">
-                                @csrf
-                                @method('PATCH')
-                                <button type="submit" class="px-3.5 py-1.5 rounded-lg bg-[#F7E8E6] text-[#9E3B33] hover:bg-[#DFB8B3] text-xs font-semibold transition">
-                                    Cancel Order
-                                </button>
-                            </form>
+                            <button type="button"
+                                    data-action="{{ route('orders.cancel', $order) }}"
+                                    data-order-number="{{ $order->order_number }}"
+                                    onclick="openCustomerCancelModal(this)"
+                                    class="px-3.5 py-1.5 rounded-lg bg-[#F7E8E6] text-[#9E3B33] hover:bg-[#DFB8B3] text-xs font-semibold transition">
+                                Cancel Order
+                            </button>
                         @elseif($order->isDelivery() && in_array($order->status, ['confirmed', 'out_for_delivery']))
                             <a href="tel:+639170000000"
                                class="px-3 py-1.5 rounded-lg bg-[#FDF4E7] text-[#7A4E1D] border border-[#D9B382] text-xs font-semibold hover:bg-[#F7E6CE] transition">
@@ -235,7 +247,97 @@
     </div>
 </div>
 
+<!-- Customer Cancellation Reason Modal -->
+<div id="customerCancelModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+    <div onclick="closeCustomerCancelModal()" class="fixed inset-0 bg-[#2E2A25]/60 backdrop-blur-xs transition-opacity"></div>
+
+    <div class="relative z-10 w-full max-w-md bg-[#FAF7F2] rounded-3xl border border-[#E2D8C3] shadow-2xl overflow-hidden">
+        <div class="bg-[#9E3B33] px-6 py-4 flex items-center justify-between text-[#FAF7F2]">
+            <h3 class="font-bold text-base">Cancel Order <span id="custCancelOrderNum" class="font-mono"></span></h3>
+            <button type="button" onclick="closeCustomerCancelModal()" class="text-[#FAF7F2]/80 hover:text-white text-lg leading-none">×</button>
+        </div>
+
+        <form id="customerCancelForm" method="POST" class="p-6 space-y-4 text-xs">
+            @csrf
+            @method('PATCH')
+
+            <div>
+                <label class="block font-bold text-[#2E2A25] mb-1">Reason for Cancellation <span class="text-[#9E3B33]">*</span></label>
+                <select name="cancellation_reason" required onchange="toggleCustCustomReason(this.value)"
+                        class="w-full px-3 py-2.5 rounded-xl border border-[#D4C8B4] bg-white font-semibold text-[#2E2A25]">
+                    <option value="">— Select a reason —</option>
+                    <option value="Changed My Mind">Changed My Mind</option>
+                    <option value="Ordered Wrong Item or Quantity">Ordered Wrong Item or Quantity</option>
+                    <option value="Schedule Conflict / Cannot Pick Up on Time">Schedule Conflict / Cannot Pick Up on Time</option>
+                    <option value="Wrong Delivery Address or Contact Info">Wrong Delivery Address or Contact Info</option>
+                    <option value="Found an Alternative / Duplicate Order">Found an Alternative / Duplicate Order</option>
+                    <option value="Other">Other (Specify Custom Reason)</option>
+                </select>
+            </div>
+
+            <div id="custCustomReasonBox" class="hidden">
+                <label class="block font-bold text-[#2E2A25] mb-1">Custom Reason <span class="text-[#9E3B33]">*</span></label>
+                <input type="text" name="custom_reason" id="custCustomReasonInput" maxlength="120"
+                       placeholder="Enter your reason..."
+                       class="w-full px-3 py-2 rounded-xl border border-[#D4C8B4] bg-white font-semibold text-[#2E2A25]">
+            </div>
+
+            <div>
+                <label class="block font-bold text-[#2E2A25] mb-1">Explanation <span class="text-[#9E3B33]">*</span></label>
+                <textarea name="cancellation_explanation" rows="3" required minlength="5" maxlength="500"
+                          placeholder="Please briefly explain why you are cancelling this order..."
+                          class="w-full px-3 py-2 rounded-xl border border-[#D4C8B4] bg-white text-[#2E2A25]"></textarea>
+            </div>
+
+            <div class="flex items-center justify-end gap-2.5 pt-1">
+                <button type="button" onclick="closeCustomerCancelModal()"
+                        class="px-4 py-2 rounded-xl border border-[#D4C8B4] bg-white font-semibold text-[#5C4E42] hover:bg-[#EFE9DC] transition">
+                    Keep Order
+                </button>
+                <button type="submit"
+                        class="px-5 py-2 rounded-xl bg-[#9E3B33] text-[#FAF7F2] font-semibold hover:bg-[#822E27] transition shadow-sm">
+                    Submit & Cancel Order
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
+const custCancelModal = document.getElementById('customerCancelModal');
+const custCancelForm = document.getElementById('customerCancelForm');
+
+function openCustomerCancelModal(btn) {
+    custCancelForm.reset();
+    toggleCustCustomReason('');
+    custCancelForm.action = btn.dataset.action;
+    document.getElementById('custCancelOrderNum').textContent = btn.dataset.orderNumber;
+    custCancelModal.classList.remove('hidden');
+    custCancelModal.classList.add('flex');
+}
+
+function closeCustomerCancelModal() {
+    custCancelModal.classList.add('hidden');
+    custCancelModal.classList.remove('flex');
+}
+
+function toggleCustCustomReason(val) {
+    const box = document.getElementById('custCustomReasonBox');
+    const input = document.getElementById('custCustomReasonInput');
+    if (val === 'Other') {
+        box.classList.remove('hidden');
+        input.required = true;
+    } else {
+        box.classList.add('hidden');
+        input.required = false;
+        input.value = '';
+    }
+}
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeCustomerCancelModal();
+});
+
 document.addEventListener('DOMContentLoaded', () => {
     const filterBtns = document.querySelectorAll('.cust-order-tab');
     const orderCards = document.querySelectorAll('.cust-order-card');

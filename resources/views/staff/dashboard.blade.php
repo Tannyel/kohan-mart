@@ -75,7 +75,7 @@
             </button>
         </div>
 
-        <!-- SCREEN 1: Customer Orders (Pickup & Lalamove Delivery) -->
+        <!-- SCREEN 1: Customer Orders (Universal Rows + Floating Detail Modal) -->
         <div id="panel-orders" class="admin-panel p-7 {{ $activeTab !== 'orders' ? 'hidden' : '' }}">
             <div class="mb-5">
                 <h2 class="text-xl font-bold text-[#2E2A25]">Customer Pickup & Delivery Orders</h2>
@@ -115,126 +115,143 @@
                 <table class="w-full text-left text-sm">
                     <thead class="bg-[#FAF7F2] border-b border-[#E2D8C3] text-xs uppercase text-[#5C4E42]">
                         <tr>
-                            <th class="p-4">Order #</th>
-                            <th class="p-4">Customer & Fulfillment</th>
-                            <th class="p-4">Ordered Items</th>
+                            <th class="p-4">Order # & Mode</th>
+                            <th class="p-4">Customer & Summary</th>
+                            <th class="p-4">Items</th>
                             <th class="p-4">Total & Payment</th>
-                            <th class="p-4 min-w-[380px]">Fulfillment Status</th>
+                            <th class="p-4">Details</th>
+                            <th class="p-4 min-w-[330px]">Fulfillment Status</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-[#F0EAE0]" id="ordersTableBody">
                         @forelse($orders as $order)
                             @php
                                 $isPointsRedemption = ($order->payment_method === 'points_redemption' || $order->payment_method === 'points' || $order->total_minor === 0);
+                                $orderModalPayload = [
+                                    'order_number' => $order->order_number,
+                                    'created_at' => $order->created_at?->format('M d, Y • h:i A'),
+                                    'customer_name' => $order->user->name ?? 'Customer',
+                                    'customer_email' => $order->user->email ?? '',
+                                    'fulfillment_type' => $order->isDelivery() ? 'Lalamove Express Delivery' : 'Store Pickup (Project 8, QC)',
+                                    'is_delivery' => $order->isDelivery(),
+                                    'pickup_scheduled_at' => $order->pickup_scheduled_at?->format('l, M d, Y • h:i A'),
+                                    'delivery_address' => $order->delivery_address,
+                                    'delivery_recipient_phone' => $order->delivery_recipient_phone,
+                                    'delivery_distance_km' => $order->delivery_distance_km ? number_format((float)$order->delivery_distance_km, 2) . ' km' : null,
+                                    'courier_driver_name' => $order->courier_driver_name,
+                                    'courier_driver_plate' => $order->courier_driver_plate,
+                                    'courier_driver_phone' => $order->courier_driver_phone,
+                                    'track_url' => $order->isDelivery() ? route('delivery.track', $order) : null,
+                                    'receipt_url' => route('orders.receipt', $order),
+                                    'items' => $order->items->map(fn ($i) => [
+                                        'name' => $i->product->name ?? 'Catalog Item',
+                                        'qty' => $i->quantity,
+                                        'line_total' => $formatter->format($i->unit_price_minor * $i->quantity),
+                                    ])->values(),
+                                    'subtotal' => $formatter->format($order->subtotal_minor),
+                                    'delivery_fee' => $formatter->format($order->delivery_fee_minor),
+                                    'points_used' => (float) $order->points_used,
+                                    'points_discount' => $formatter->format($order->points_discount_minor),
+                                    'total' => $formatter->format($order->total_minor),
+                                    'payment_label' => $isPointsRedemption ? 'Points Payment' : ($order->is_paid ? 'Paid Online' : 'Pending'),
+                                    'status' => $order->status,
+                                    'cancelled_by' => $order->cancelled_by,
+                                    'cancellation_reason' => $order->cancellation_reason,
+                                    'cancellation_explanation' => $order->cancellation_explanation,
+                                    'delivery_fee_forfeited' => (bool) $order->delivery_fee_forfeited,
+                                    'refunded' => $formatter->format($order->refunded_minor),
+                                ];
                             @endphp
-                            <tr class="order-row {{ ($activeOrderTab !== 'all' && $order->status !== $activeOrderTab) ? 'hidden' : '' }}"
+                            <tr class="order-row hover:bg-[#FAF7F2]/70 transition {{ ($activeOrderTab !== 'all' && $order->status !== $activeOrderTab) ? 'hidden' : '' }}"
                                 data-status="{{ $order->status }}">
-                                <td class="p-4 align-top">
-                                    <div class="font-mono font-bold text-[#2E2A25] whitespace-nowrap">{{ $order->order_number }}</div>
-                                    <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border {{ $order->isDelivery() ? 'bg-[#FDF4E7] text-[#7A4E1D] border-[#D9B382]' : 'bg-[#F3EDE0] text-[#4A3B31] border-[#D4C8B4]' }}">
+                                <td class="p-4 align-middle whitespace-nowrap">
+                                    <div class="font-mono font-bold text-[#2E2A25]">{{ $order->order_number }}</div>
+                                    <span class="inline-block mt-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold border {{ $order->isDelivery() ? 'bg-[#FDF4E7] text-[#7A4E1D] border-[#D9B382]' : 'bg-[#F3EDE0] text-[#4A3B31] border-[#D4C8B4]' }}">
                                         {{ $order->isDelivery() ? '🛵 Lalamove' : '🏪 Pickup' }}
                                     </span>
                                 </td>
-                                <td class="p-4 align-top max-w-xs">
-                                    <div class="font-semibold text-[#2E2A25]">{{ $order->user->name }}</div>
+
+                                <td class="p-4 align-middle max-w-[230px]">
+                                    <div class="font-semibold text-[#2E2A25] truncate">{{ $order->user->name }}</div>
                                     @if($order->isDelivery())
-                                        <div class="mt-1 p-2 rounded-lg bg-[#FDF4E7] border border-[#E3CCA8] text-[11px] text-[#4A3B31] space-y-0.5">
-                                            <div class="font-semibold text-[#7A4E1D]">
-                                                📍 {{ $order->delivery_address }}
-                                            </div>
-                                            @if($order->delivery_recipient_phone)
-                                                <div>📞 {{ $order->delivery_recipient_phone }}</div>
-                                            @endif
-                                            @if($order->courier_driver_name)
-                                                <div class="text-[#2B4230] font-semibold">
-                                                    Rider: {{ $order->courier_driver_name }} ({{ $order->courier_driver_plate }})
-                                                    @if($order->courier_driver_phone)
-                                                        • {{ $order->courier_driver_phone }}
-                                                    @endif
-                                                </div>
-                                            @endif
-                                            <a href="{{ route('delivery.track', $order) }}"
-                                               class="inline-block mt-1 text-[#3F5A45] font-bold hover:underline">
-                                                Track Live ShareLink →
-                                            </a>
+                                        <div class="text-xs text-[#7A4E1D] truncate mt-0.5" title="{{ $order->delivery_address }}">
+                                            📍 {{ $order->delivery_address }}
                                         </div>
                                     @else
-                                        <div class="inline-flex items-center gap-1.5 mt-1 px-2.5 py-0.5 rounded-md bg-[#F3EDE0] border border-[#E2D8C3] text-xs font-semibold text-[#4A3B31] whitespace-nowrap">
-                                            <span>📅 {{ $order->pickup_scheduled_at?->format('M d, Y • h:i A') }}</span>
+                                        <div class="text-xs text-[#5C4E42] truncate mt-0.5">
+                                            📅 {{ $order->pickup_scheduled_at?->format('M d, Y • h:i A') }}
                                         </div>
                                     @endif
                                 </td>
-                                <td class="p-4 align-top text-xs text-[#5C4E42] space-y-0.5">
-                                    @foreach($order->items as $item)
-                                        <div>{{ $item->product->name ?? 'Catalog Item' }} (×{{ $item->quantity }})</div>
-                                    @endforeach
-                                    @if($order->isDelivery() && $order->delivery_fee_minor > 0)
-                                        <div class="text-[#7A4E1D] font-semibold pt-1">
-                                            + Delivery: {{ $formatter->format($order->delivery_fee_minor) }}
-                                        </div>
-                                    @endif
+
+                                <td class="p-4 align-middle whitespace-nowrap text-xs text-[#5C4E42]">
+                                    <div class="font-semibold text-[#2E2A25]">
+                                        {{ $order->items->sum('quantity') }} item(s)
+                                    </div>
+                                    <div class="text-[11px] text-[#7A6B5D] truncate max-w-[160px]">
+                                        {{ $order->items->first()?->product?->name ?? 'Catalog Item' }}{{ $order->items->count() > 1 ? ' +' . ($order->items->count() - 1) . ' more' : '' }}
+                                    </div>
                                 </td>
-                                <td class="p-4 align-top whitespace-nowrap">
+
+                                <td class="p-4 align-middle whitespace-nowrap">
                                     <div class="font-bold text-[#6B4E3D]">{{ $formatter->format($order->total_minor) }}</div>
-                                    
                                     @if($isPointsRedemption)
-                                        <span class="inline-block mt-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#E6EFE8] text-[#2B4230] border border-[#B8D1BE]">
+                                        <span class="inline-block mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#E6EFE8] text-[#2B4230] border border-[#B8D1BE]">
                                             ⭐ Points Payment
                                         </span>
                                     @elseif($order->is_paid)
-                                        <span class="inline-block mt-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#E6EFE8] text-[#2B4230] border border-[#B8D1BE]">
+                                        <span class="inline-block mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#E6EFE8] text-[#2B4230] border border-[#B8D1BE]">
                                             ✓ Paid
                                         </span>
                                     @else
-                                        <span class="inline-block mt-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#F7E8E6] text-[#9E3B33] border border-[#DFB8B3]">
-                                            Pending Payment
+                                        <span class="inline-block mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#F7E8E6] text-[#9E3B33] border border-[#DFB8B3]">
+                                            Pending
                                         </span>
                                     @endif
                                 </td>
-                                <td class="p-4 align-top">
+
+                                <td class="p-4 align-middle whitespace-nowrap">
+                                    <button type="button"
+                                            data-order='@json($orderModalPayload)'
+                                            onclick="openOrderDetailModal(this)"
+                                            class="px-3 py-1.5 rounded-lg bg-[#F3EDE0] border border-[#D4C8B4] text-[#2E2A25] hover:border-[#3F5A45] hover:bg-[#E6EFE8] text-xs font-semibold transition">
+                                        View Details
+                                    </button>
+                                </td>
+
+                                <td class="p-4 align-middle">
                                     @if($order->status === 'cancelled')
-                                        <div class="space-y-1.5">
+                                        <div class="flex flex-wrap items-center gap-2">
                                             @if($order->cancelled_by === 'customer')
-                                                <span class="inline-flex items-center px-3.5 py-1 rounded-full text-xs font-semibold bg-[#F7E8E6] text-[#9E3B33] border border-[#DFB8B3]">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-[#F7E8E6] text-[#9E3B33] border border-[#DFB8B3]">
                                                     Cancelled by Customer
                                                 </span>
                                             @elseif($order->cancelled_by === 'admin')
-                                                <span class="inline-flex items-center px-3.5 py-1 rounded-full text-xs font-semibold bg-[#EFE9DC] text-[#6B4E3D] border border-[#D4C8B4]">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-[#EFE9DC] text-[#6B4E3D] border border-[#D4C8B4]">
                                                     Cancelled by Store Admin
                                                 </span>
                                             @else
-                                                <span class="inline-flex items-center px-3.5 py-1 rounded-full text-xs font-semibold bg-[#F7E8E6] text-[#9E3B33] border border-[#DFB8B3]">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-[#F7E8E6] text-[#9E3B33] border border-[#DFB8B3]">
                                                     Cancelled
                                                 </span>
                                             @endif
 
-                                            @if($order->delivery_fee_forfeited)
-                                                <div class="text-[11px] font-semibold text-[#7A4E1D]">
-                                                    Delivery Fee Forfeited • Refunded {{ $formatter->format($order->refunded_minor) }}
-                                                </div>
-                                            @endif
-
                                             @if($order->isAwaitingStockReturn())
-                                                <div class="p-2.5 rounded-xl bg-[#FDF4E7] border border-[#D9B382] space-y-1.5">
-                                                    <div class="text-[11px] font-bold text-[#7A4E1D]">
-                                                        ⚠️ Bag with Lalamove Rider (Stock Held)
-                                                    </div>
-                                                    <form action="{{ route('staff.orders.confirm-return', $order) }}" method="POST">
-                                                        @csrf
-                                                        @method('PATCH')
-                                                        <input type="hidden" name="current_order_tab" class="current-order-tab-input" value="{{ $activeOrderTab }}">
-                                                        <button type="submit"
-                                                                class="px-3 py-1.5 rounded-lg bg-[#3F5A45] text-[#FAF7F2] text-[11px] font-semibold hover:bg-[#324837] transition">
-                                                            ✓ Confirm Returned to Shelf
-                                                        </button>
-                                                    </form>
-                                                </div>
+                                                <form action="{{ route('staff.orders.confirm-return', $order) }}" method="POST">
+                                                    @csrf
+                                                    @method('PATCH')
+                                                    <input type="hidden" name="current_order_tab" class="current-order-tab-input" value="{{ $activeOrderTab }}">
+                                                    <button type="submit"
+                                                            class="px-2.5 py-1 rounded-lg bg-[#3F5A45] text-[#FAF7F2] text-[11px] font-semibold hover:bg-[#324837] transition">
+                                                        ✓ Return Stock
+                                                    </button>
+                                                </form>
                                             @endif
                                         </div>
                                     @else
                                         <div class="flex items-center gap-2">
                                             <form action="{{ route('staff.orders.update', $order) }}" method="POST"
-                                                  class="grid grid-cols-[175px_75px] items-center gap-2">
+                                                  class="grid grid-cols-[165px_70px] items-center gap-2">
                                                 @csrf
                                                 @method('PATCH')
                                                 <input type="hidden" name="current_order_tab" class="current-order-tab-input" value="{{ $activeOrderTab }}">
@@ -269,10 +286,10 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="5" class="p-8 text-center text-[#7A6B5D] text-xs">No customer orders yet.</td></tr>
+                            <tr><td colspan="6" class="p-8 text-center text-[#7A6B5D] text-xs">No customer orders yet.</td></tr>
                         @endforelse
                         <tr id="noOrdersInTabRow" class="hidden">
-                            <td colspan="5" class="p-8 text-center text-[#7A6B5D] text-xs">No orders under this status right now.</td>
+                            <td colspan="6" class="p-8 text-center text-[#7A6B5D] text-xs">No orders under this status right now.</td>
                         </tr>
                     </tbody>
                 </table>
@@ -547,12 +564,73 @@
     </div>
 </div>
 
-<!-- Aesthetic Wabi-Sabi Cancel Order Modal -->
+<!-- Universal In-Depth Order Detail Floating Modal -->
+<div id="orderDetailModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+    <div onclick="closeOrderDetailModal()" class="fixed inset-0 bg-[#2E2A25]/60 backdrop-blur-xs transition-opacity"></div>
+
+    <div class="relative z-10 w-full max-w-2xl bg-[#FAF7F2] rounded-3xl border border-[#E2D8C3] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div class="bg-[#3F5A45] px-6 py-4 flex items-center justify-between text-[#FAF7F2] shrink-0">
+            <div>
+                <span class="text-[10px] uppercase tracking-widest text-[#DCE8DF] block" id="detailModalMode">—</span>
+                <h3 class="font-mono font-bold text-lg" id="detailModalOrderNumber">—</h3>
+            </div>
+            <button type="button" onclick="closeOrderDetailModal()" class="text-[#FAF7F2]/80 hover:text-white text-xl leading-none px-1">
+                ×
+            </button>
+        </div>
+
+        <div class="p-6 overflow-y-auto space-y-4 text-xs text-[#2E2A25]">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white rounded-2xl border border-[#E2D8C3] p-4">
+                <div>
+                    <span class="text-[10px] uppercase tracking-wider text-[#7A6B5D] font-semibold block">Customer</span>
+                    <span class="font-bold text-sm" id="detailModalCustomer">—</span>
+                    <span class="text-[#5C4E42] block" id="detailModalEmail">—</span>
+                </div>
+                <div>
+                    <span class="text-[10px] uppercase tracking-wider text-[#7A6B5D] font-semibold block">Order Placed</span>
+                    <span class="font-semibold" id="detailModalCreatedAt">—</span>
+                    <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#E6EFE8] text-[#2B4230]" id="detailModalPayment">—</span>
+                </div>
+            </div>
+
+            <div id="detailModalFulfillmentBox" class="rounded-2xl border p-4 space-y-1.5"></div>
+
+            <div id="detailModalCancelBox" class="hidden rounded-2xl bg-[#F7E8E6] border border-[#DFB8B3] p-4 space-y-1 text-[#7A2720]"></div>
+
+            <div class="bg-white rounded-2xl border border-[#E2D8C3] p-4 space-y-2">
+                <h4 class="font-bold text-xs uppercase tracking-wider text-[#5C4E42] border-b border-[#F0EAE0] pb-2">Ordered Items</h4>
+                <ul id="detailModalItemsList" class="divide-y divide-[#F0EAE0]"></ul>
+                <div class="pt-2 border-t border-[#E2D8C3] space-y-1">
+                    <div class="flex justify-between text-[#5C4E42]"><span>Subtotal</span><span id="detailModalSubtotal" class="font-semibold">₱0.00</span></div>
+                    <div class="flex justify-between text-[#7A4E1D]" id="detailModalDeliveryRow"><span>Lalamove Delivery Fee</span><span id="detailModalDeliveryFee" class="font-semibold">₱0.00</span></div>
+                    <div class="flex justify-between text-[#3F5A45]" id="detailModalPointsRow"><span>Loyalty Points Discount</span><span id="detailModalPointsDiscount" class="font-semibold">-₱0.00</span></div>
+                    <div class="flex justify-between text-sm font-bold text-[#6B4E3D] pt-1 border-t border-[#F0EAE0]"><span>Total Paid</span><span id="detailModalTotal">₱0.00</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-[#F3EDE0] border-t border-[#E2D8C3] px-6 py-3.5 flex flex-wrap items-center justify-between gap-2 shrink-0">
+            <div class="flex items-center gap-2">
+                <a id="detailModalTrackBtn" href="#" class="hidden px-4 py-2 rounded-xl bg-[#3F5A45] text-[#FAF7F2] text-xs font-semibold hover:bg-[#324837] transition">
+                    Track Live ShareLink →
+                </a>
+                <a id="detailModalReceiptBtn" href="#" target="_blank" class="px-4 py-2 rounded-xl bg-[#6B4E3D] text-[#FAF7F2] text-xs font-semibold hover:bg-[#573E30] transition">
+                    Open Official Receipt
+                </a>
+            </div>
+            <button type="button" onclick="closeOrderDetailModal()" class="px-4 py-2 rounded-xl border border-[#D4C8B4] bg-white text-xs font-semibold text-[#5C4E42] hover:bg-[#EFE9DC] transition">
+                Close
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Aesthetic Wabi-Sabi Admin Cancel Order Modal with Preset + Custom Reason & Explanation -->
 <div id="cancelOrderModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
     <div onclick="closeCancelOrderModal()" class="fixed inset-0 bg-[#2E2A25]/60 backdrop-blur-xs transition-opacity"></div>
 
-    <div class="relative z-10 w-full max-w-md bg-[#FAF7F2] rounded-3xl border border-[#E2D8C3] shadow-2xl overflow-hidden">
-        <div class="bg-[#9E3B33] px-6 py-4 flex items-center justify-between text-[#FAF7F2]">
+    <div class="relative z-10 w-full max-w-lg bg-[#FAF7F2] rounded-3xl border border-[#E2D8C3] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+        <div class="bg-[#9E3B33] px-6 py-4 flex items-center justify-between text-[#FAF7F2] shrink-0">
             <div class="flex items-center gap-2.5">
                 <span class="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center text-sm font-bold">!</span>
                 <h3 class="font-bold text-base tracking-wide">Cancel Customer Order</h3>
@@ -562,59 +640,179 @@
             </button>
         </div>
 
-        <div class="p-6 space-y-4">
-            <div class="bg-white rounded-2xl border border-[#E2D8C3] p-4 space-y-1">
-                <p class="text-[11px] uppercase tracking-wider text-[#7A6B5D] font-semibold">Target Order</p>
-                <p class="font-mono font-bold text-base text-[#2E2A25]" id="modalOrderNumber">—</p>
-                <p class="text-xs text-[#5C4E42]">Customer: <strong id="modalCustomerName">—</strong></p>
+        <form id="cancelOrderModalForm" method="POST" class="p-6 space-y-4 overflow-y-auto text-xs">
+            @csrf
+            @method('PATCH')
+            <input type="hidden" name="status" value="cancelled">
+            <input type="hidden" name="current_order_tab" id="modalCurrentOrderTab" value="{{ $activeOrderTab }}">
+
+            <div class="bg-white rounded-2xl border border-[#E2D8C3] p-3.5 flex items-center justify-between">
+                <div>
+                    <p class="text-[10px] uppercase tracking-wider text-[#7A6B5D] font-semibold">Target Order</p>
+                    <p class="font-mono font-bold text-sm text-[#2E2A25]" id="modalOrderNumber">—</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-[10px] uppercase tracking-wider text-[#7A6B5D] font-semibold">Customer</p>
+                    <p class="font-semibold text-[#2E2A25]" id="modalCustomerName">—</p>
+                </div>
             </div>
 
-            <div class="text-xs text-[#4A3B31] space-y-2 leading-relaxed">
-                <p class="font-semibold text-[#2E2A25]">Confirming this cancellation will automatically:</p>
-                <ul class="space-y-1.5 pl-1 text-[#5C4E42]">
-                    <li class="flex items-start gap-2">
-                        <span class="text-[#3F5A45] font-bold">✓</span>
-                        <span>Restore shelf stock immediately (or hold until rider bag return if already in transit)</span>
-                    </li>
-                    <li class="flex items-start gap-2">
-                        <span class="text-[#3F5A45] font-bold">✓</span>
-                        <span>Forfeit Lalamove delivery fee if rider was already assigned, and refund item balance & points</span>
-                    </li>
-                    <li class="flex items-start gap-2">
-                        <span class="text-[#3F5A45] font-bold">✓</span>
-                        <span>Send an official cancellation email to the customer</span>
-                    </li>
-                </ul>
+            <div>
+                <label class="block font-bold text-[#2E2A25] mb-1">Select Cancellation Reason <span class="text-[#9E3B33]">*</span></label>
+                <select name="cancellation_reason" id="adminCancelReasonSelect" required onchange="toggleAdminCustomReason(this.value)"
+                        class="w-full px-3 py-2.5 rounded-xl border border-[#D4C8B4] bg-white font-semibold text-[#2E2A25]">
+                    <option value="">— Choose a preset reason —</option>
+                    <option value="Item Out of Stock / Damaged">Item Out of Stock / Damaged on Shelf</option>
+                    <option value="Customer Requested Cancellation">Customer Requested Cancellation via Phone</option>
+                    <option value="Delivery Address Unreachable / Outside Coverage">Delivery Address Unreachable / Outside Coverage</option>
+                    <option value="No Lalamove Rider Available">No Lalamove Rider Available</option>
+                    <option value="Unclaimed Past Pickup Deadline">Unclaimed Past Store Pickup Deadline</option>
+                    <option value="Other">Other (Specify Custom Reason)</option>
+                </select>
             </div>
 
-            <form id="cancelOrderModalForm" method="POST" class="pt-2 flex items-center justify-end gap-3">
-                @csrf
-                @method('PATCH')
-                <input type="hidden" name="status" value="cancelled">
-                <input type="hidden" name="current_order_tab" id="modalCurrentOrderTab" value="{{ $activeOrderTab }}">
+            <div id="adminCustomReasonBox" class="hidden">
+                <label class="block font-bold text-[#2E2A25] mb-1">Custom Reason Title <span class="text-[#9E3B33]">*</span></label>
+                <input type="text" name="custom_reason" id="adminCustomReasonInput" maxlength="120"
+                       placeholder="Enter short reason title..."
+                       class="w-full px-3 py-2 rounded-xl border border-[#D4C8B4] bg-white font-semibold text-[#2E2A25]">
+            </div>
 
+            <div>
+                <label class="block font-bold text-[#2E2A25] mb-1">Detailed Explanation <span class="text-[#9E3B33]">*</span></label>
+                <textarea name="cancellation_explanation" rows="3" required minlength="5" maxlength="500"
+                          placeholder="Provide context for the customer and audit log (e.g., Last box was dented during packing; full refund issued)..."
+                          class="w-full px-3 py-2 rounded-xl border border-[#D4C8B4] bg-white text-[#2E2A25]"></textarea>
+            </div>
+
+            <div class="bg-[#FDF4E7] border border-[#E3CCA8] rounded-xl p-3 text-[11px] text-[#7A4E1D] leading-relaxed">
+                Stock and loyalty points will be reconciled automatically, and the customer will receive an email notification.
+            </div>
+
+            <div class="pt-1 flex items-center justify-end gap-3">
                 <button type="button"
                         onclick="closeCancelOrderModal()"
-                        class="px-4 py-2.5 rounded-xl border border-[#D4C8B4] bg-white text-xs font-semibold text-[#5C4E42] hover:bg-[#EFE9DC] transition">
+                        class="px-4 py-2.5 rounded-xl border border-[#D4C8B4] bg-white font-semibold text-[#5C4E42] hover:bg-[#EFE9DC] transition">
                     Keep Order
                 </button>
                 <button type="submit"
-                        class="px-5 py-2.5 rounded-xl bg-[#9E3B33] text-[#FAF7F2] text-xs font-semibold hover:bg-[#822E27] transition shadow-sm">
-                    Yes, Cancel Order
+                        class="px-5 py-2.5 rounded-xl bg-[#9E3B33] text-[#FAF7F2] font-semibold hover:bg-[#822E27] transition shadow-sm">
+                    Confirm Cancellation
                 </button>
-            </form>
-        </div>
+            </div>
+        </form>
     </div>
 </div>
 
 <script id="staffPortalScript" data-initial-order-tab="{{ $activeOrderTab }}">
+const detailModal = document.getElementById('orderDetailModal');
 const cancelModal = document.getElementById('cancelOrderModal');
 const cancelModalForm = document.getElementById('cancelOrderModalForm');
 const modalOrderNumber = document.getElementById('modalOrderNumber');
 const modalCustomerName = document.getElementById('modalCustomerName');
 const modalCurrentOrderTab = document.getElementById('modalCurrentOrderTab');
 
+function openOrderDetailModal(btn) {
+    const data = JSON.parse(btn.dataset.order);
+    document.getElementById('detailModalMode').textContent = data.fulfillment_type;
+    document.getElementById('detailModalOrderNumber').textContent = data.order_number;
+    document.getElementById('detailModalCustomer').textContent = data.customer_name;
+    document.getElementById('detailModalEmail').textContent = data.customer_email;
+    document.getElementById('detailModalCreatedAt').textContent = data.created_at;
+    document.getElementById('detailModalPayment').textContent = data.payment_label;
+    document.getElementById('detailModalSubtotal').textContent = data.subtotal;
+    document.getElementById('detailModalTotal').textContent = data.total;
+    document.getElementById('detailModalReceiptBtn').href = data.receipt_url;
+
+    const trackBtn = document.getElementById('detailModalTrackBtn');
+    if (data.is_delivery && data.track_url) {
+        trackBtn.href = data.track_url;
+        trackBtn.classList.remove('hidden');
+    } else {
+        trackBtn.classList.add('hidden');
+    }
+
+    const fulfillmentBox = document.getElementById('detailModalFulfillmentBox');
+    if (data.is_delivery) {
+        fulfillmentBox.className = 'rounded-2xl bg-[#FDF4E7] border border-[#E3CCA8] p-4 space-y-1.5 text-[#4A3B31]';
+        fulfillmentBox.innerHTML = `
+            <div class="font-bold text-[#7A4E1D]">🛵 Lalamove Drop-Off Details ${data.delivery_distance_km ? `(${data.delivery_distance_km})` : ''}</div>
+            <div><strong>Address:</strong> ${data.delivery_address || '—'}</div>
+            <div><strong>Recipient Phone:</strong> ${data.delivery_recipient_phone || '—'}</div>
+            ${data.courier_driver_name ? `<div class="text-[#2B4230] font-semibold"><strong>Assigned Rider:</strong> ${data.courier_driver_name} (${data.courier_driver_plate || ''}) • ${data.courier_driver_phone || ''}</div>` : ''}
+        `;
+    } else {
+        fulfillmentBox.className = 'rounded-2xl bg-[#F3EDE0] border border-[#DCD0BA] p-4 space-y-1 text-[#4A3B31]';
+        fulfillmentBox.innerHTML = `
+            <div class="font-bold text-[#6B4E3D]">🏪 Store Pickup Schedule</div>
+            <div><strong>Scheduled Date & Time:</strong> ${data.pickup_scheduled_at || '—'}</div>
+            <div><strong>Location:</strong> 41 Insurance, Project 8, Quezon City</div>
+        `;
+    }
+
+    const cancelBox = document.getElementById('detailModalCancelBox');
+    if (data.status === 'cancelled') {
+        const who = data.cancelled_by === 'admin' ? 'Store Admin' : (data.cancelled_by === 'customer' ? 'Customer' : 'System');
+        cancelBox.innerHTML = `
+            <div class="font-bold">Cancelled by ${who}</div>
+            <div><strong>Reason:</strong> ${data.cancellation_reason || 'No reason recorded'}</div>
+            ${data.cancellation_explanation ? `<div><strong>Explanation:</strong> ${data.cancellation_explanation}</div>` : ''}
+            ${data.delivery_fee_forfeited ? `<div class="font-semibold pt-1">Delivery fee forfeited • Refunded ${data.refunded}</div>` : ''}
+        `;
+        cancelBox.classList.remove('hidden');
+    } else {
+        cancelBox.classList.add('hidden');
+    }
+
+    const itemsList = document.getElementById('detailModalItemsList');
+    itemsList.innerHTML = data.items.map(i => `
+        <li class="py-2 flex justify-between">
+            <span>${i.name} <strong>× ${i.qty}</strong></span>
+            <span class="font-semibold">${i.line_total}</span>
+        </li>
+    `).join('');
+
+    const delRow = document.getElementById('detailModalDeliveryRow');
+    if (data.is_delivery) {
+        delRow.classList.remove('hidden');
+        document.getElementById('detailModalDeliveryFee').textContent = data.delivery_fee;
+    } else {
+        delRow.classList.add('hidden');
+    }
+
+    const ptsRow = document.getElementById('detailModalPointsRow');
+    if (data.points_used > 0) {
+        ptsRow.classList.remove('hidden');
+        document.getElementById('detailModalPointsDiscount').textContent = `-${data.points_discount}`;
+    } else {
+        ptsRow.classList.add('hidden');
+    }
+
+    detailModal.classList.remove('hidden');
+    detailModal.classList.add('flex');
+}
+
+function closeOrderDetailModal() {
+    detailModal.classList.add('hidden');
+    detailModal.classList.remove('flex');
+}
+
+function toggleAdminCustomReason(val) {
+    const box = document.getElementById('adminCustomReasonBox');
+    const input = document.getElementById('adminCustomReasonInput');
+    if (val === 'Other') {
+        box.classList.remove('hidden');
+        input.required = true;
+    } else {
+        box.classList.add('hidden');
+        input.required = false;
+        input.value = '';
+    }
+}
+
 function openCancelOrderModal(btn) {
+    cancelModalForm.reset();
+    toggleAdminCustomReason('');
     cancelModalForm.action = btn.dataset.action;
     modalOrderNumber.textContent = btn.dataset.orderNumber;
     modalCustomerName.textContent = btn.dataset.customerName;
@@ -628,7 +826,8 @@ function closeCancelOrderModal() {
 }
 
 document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !cancelModal.classList.contains('hidden')) {
+    if (e.key === 'Escape') {
+        closeOrderDetailModal();
         closeCancelOrderModal();
     }
 });
@@ -641,7 +840,6 @@ document.addEventListener('DOMContentLoaded', () => {
     tabButtons.forEach(btn => {
         btn.addEventListener('click', () => {
             const target = btn.dataset.tab;
-
             tabButtons.forEach(b => {
                 const isActive = b === btn;
                 b.className = `admin-tab-btn px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-2 ${
@@ -650,7 +848,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         : 'bg-[#FAF7F2] text-[#5C4E42] hover:bg-[#E5DEC9]'
                 }`;
             });
-
             panels.forEach(panel => {
                 panel.classList.toggle('hidden', panel.id !== `panel-${target}`);
             });
@@ -664,47 +861,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function filterOrdersByStatus(selectedStatus) {
         let visibleRows = 0;
-
         orderRows.forEach(row => {
             const show = selectedStatus === 'all' || row.dataset.status === selectedStatus;
             row.classList.toggle('hidden', !show);
             if (show) visibleRows++;
         });
-
         if (noOrdersRow && orderRows.length > 0) {
             noOrdersRow.classList.toggle('hidden', visibleRows > 0);
         }
-
-        hiddenOrderTabInputs.forEach(input => {
-            input.value = selectedStatus;
-        });
-
-        if (modalCurrentOrderTab) {
-            modalCurrentOrderTab.value = selectedStatus;
-        }
+        hiddenOrderTabInputs.forEach(input => input.value = selectedStatus);
+        if (modalCurrentOrderTab) modalCurrentOrderTab.value = selectedStatus;
     }
 
     orderSubBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             const status = btn.dataset.orderStatus;
-
             orderSubBtns.forEach(b => {
                 const isSelected = b === btn;
                 const badge = b.querySelector('span:last-child');
-
                 b.className = `order-subtab-btn px-3.5 py-1.5 rounded-lg text-xs font-semibold border transition flex items-center gap-1.5 ${
                     isSelected
                         ? 'bg-[#6B4E3D] text-[#FAF7F2] border-[#6B4E3D] shadow-sm'
                         : 'bg-[#FAF7F2] text-[#5C4E42] border-[#D4C8B4] hover:border-[#6B4E3D]'
                 }`;
-
                 if (badge) {
                     badge.className = `px-1.5 py-0.2 rounded-full text-[10px] ${
                         isSelected ? 'bg-white/20 text-white' : 'bg-[#EFE9DC] text-[#5C4E42]'
                     }`;
                 }
             });
-
             filterOrdersByStatus(status);
         });
     });

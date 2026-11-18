@@ -124,15 +124,32 @@ class StaffController extends Controller
     {
         $validated = $request->validate([
             'status' => ['required', 'in:confirmed,ready_for_pickup,out_for_delivery,completed,cancelled'],
+            'cancellation_reason' => ['required_if:status,cancelled', 'nullable', 'string', 'max:120'],
+            'custom_reason' => ['nullable', 'required_if:cancellation_reason,Other', 'string', 'max:120'],
+            'cancellation_explanation' => ['required_if:status,cancelled', 'nullable', 'string', 'min:5', 'max:500'],
+        ], [
+            'cancellation_reason.required_if' => 'Please select a reason for cancelling this order.',
+            'custom_reason.required_if' => 'Please specify your custom cancellation reason.',
+            'cancellation_explanation.required_if' => 'Please provide a brief explanation for cancelling this order.',
+            'cancellation_explanation.min' => 'Please enter at least 5 characters for the cancellation explanation.',
         ]);
 
         $newStatus = $validated['status'];
+        $finalReason = null;
+        $finalExplanation = null;
+        if ($newStatus === 'cancelled') {
+            $finalReason = ($validated['cancellation_reason'] ?? '') === 'Other'
+                ? trim((string) $validated['custom_reason'])
+                : trim((string) $validated['cancellation_reason']);
+            $finalExplanation = trim((string) $validated['cancellation_explanation']);
+        }
+
         $previousStatus = $order->status;
         $stockDeductedStatuses = ['confirmed', 'ready_for_pickup', 'out_for_delivery', 'completed'];
         $statusNote = '';
 
         try {
-            DB::transaction(function () use ($order, $previousStatus, $newStatus, $stockDeductedStatuses, &$statusNote) {
+            DB::transaction(function () use ($order, $previousStatus, $newStatus, $finalReason, $finalExplanation, $stockDeductedStatuses, &$statusNote) {
                 $order->load(['items.product', 'user']);
 
                 $wasStockDeducted = in_array($previousStatus, $stockDeductedStatuses);
@@ -212,6 +229,8 @@ class StaffController extends Controller
                 $order->update([
                     'status' => $newStatus,
                     'cancelled_by' => $newStatus === 'cancelled' ? 'admin' : $order->cancelled_by,
+                    'cancellation_reason' => $newStatus === 'cancelled' ? $finalReason : $order->cancellation_reason,
+                    'cancellation_explanation' => $newStatus === 'cancelled' ? $finalExplanation : $order->cancellation_explanation,
                     'courier_status' => $courierStatus,
                     'is_paid' => true,
                     'paid_at' => $order->paid_at ?? now(),
@@ -240,7 +259,8 @@ class StaffController extends Controller
         }
 
         $displayLabel = $newStatus === 'confirmed' ? 'NEW ORDER' : strtoupper(str_replace('_', ' ', $newStatus));
-        $this->logActivity('Updated Order', "Changed {$order->order_number} to {$displayLabel}.{$statusNote}");
+        $reasonLog = $newStatus === 'cancelled' && $finalReason ? " Reason: {$finalReason} ({$finalExplanation})." : '';
+        $this->logActivity('Updated Order', "Changed {$order->order_number} to {$displayLabel}.{$reasonLog}{$statusNote}");
 
         return back()
             ->with('active_tab', 'orders')

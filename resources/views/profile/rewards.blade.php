@@ -50,7 +50,7 @@
 
                     @if($canAfford && $product->stock_quantity > 0)
                         <button type="button"
-                                onclick="openRedeemModal('{{ $product->id }}', '{{ addslashes($product->name) }}', {{ $costPts }}, '{{ route('profile.rewards.redeem', $product) }}')"
+                                onclick="openRedeemModal('{{ $product->id }}', '{{ addslashes($product->name) }}', {{ $costPts }}, '{{ route('profile.rewards.redeem', $product) }}', '{{ addslashes($product->category) }}')"
                                 class="w-full py-2.5 rounded-xl bg-[#3F5A45] text-[#FAF7F2] text-xs font-semibold hover:bg-[#324837] transition shadow-2xs">
                             Redeem Free Item ({{ number_format($costPts, 0) }} pts)
                         </button>
@@ -119,13 +119,20 @@
 
             <!-- Pickup Schedule Field -->
             <div id="modalPickupFields" class="bg-[#F3EDE0] rounded-xl p-3.5 space-y-1.5">
-                <label class="block font-bold text-[#6B4E3D]">Scheduled Pickup Date & Time *</label>
+                <div class="flex items-center justify-between">
+                    <label class="block font-bold text-[#6B4E3D]">Scheduled Pickup Date & Time *</label>
+                    <span id="modalPickupLimitBadge" class="px-2 py-0.5 rounded-full bg-[#6B4E3D] text-white text-[10px] font-semibold uppercase">
+                        Max 1 Week
+                    </span>
+                </div>
                 <input type="datetime-local"
                        name="pickup_scheduled_at"
                        id="modalPickupTime"
                        value="{{ now()->addMinutes(15)->format('Y-m-d\TH:i') }}"
                        min="{{ now()->addMinutes(15)->format('Y-m-d\TH:i') }}"
+                       max="{{ now()->addDays(7)->format('Y-m-d\TH:i') }}"
                        class="w-full px-3 py-2 rounded-lg border border-[#D4C8B4] bg-white font-semibold text-[#2E2A25]">
+                <p id="modalPickupLimitNote" class="text-[11px] text-[#7A4E1D] leading-relaxed"></p>
             </div>
 
             <!-- Lalamove Delivery Fields & Universal Saved Pin Presets -->
@@ -240,6 +247,11 @@ const modalPickupTime = document.getElementById('modalPickupTime');
 const modalDeliveryAddress = document.getElementById('modalDeliveryAddress');
 const modalDeliveryPhone = document.getElementById('modalDeliveryPhone');
 const deliveryQuoteBox = document.getElementById('deliveryQuoteBox');
+
+function formatLocalDateTimeInput(dateObj) {
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${dateObj.getFullYear()}-${pad(dateObj.getMonth() + 1)}-${pad(dateObj.getDate())}T${pad(dateObj.getHours())}:${pad(dateObj.getMinutes())}`;
+}
 
 function loadRewardPinPresets() {
     try {
@@ -363,11 +375,33 @@ function deleteRewardPinPreset(index) {
     renderRewardPinPresets();
 }
 
-function openRedeemModal(productId, productName, costPts, redeemUrl) {
+function openRedeemModal(productId, productName, costPts, redeemUrl, category = '') {
     redeemForm.action = redeemUrl;
     modalProductId.value = productId;
     modalProductName.textContent = productName;
     modalProductCost.textContent = costPts;
+
+    const isPerishable = ['foods', 'drinks'].includes(String(category).trim().toLowerCase());
+    const now = new Date();
+    const minDate = new Date(now.getTime() + 15 * 60 * 1000);
+    const maxDate = new Date(now.getTime() + (isPerishable ? 1 : 7) * 24 * 60 * 60 * 1000);
+
+    modalPickupTime.min = formatLocalDateTimeInput(minDate);
+    modalPickupTime.max = formatLocalDateTimeInput(maxDate);
+    modalPickupTime.value = formatLocalDateTimeInput(minDate);
+
+    const badge = document.getElementById('modalPickupLimitBadge');
+    const note = document.getElementById('modalPickupLimitNote');
+    if (isPerishable) {
+        badge.textContent = 'Max 1 Day (Perishable)';
+        badge.className = 'px-2 py-0.5 rounded-full bg-[#9E3B33] text-white text-[10px] font-semibold uppercase';
+        note.innerHTML = '⚠️ <strong>Foods & Drinks</strong> must be picked up within <strong>1 day (24 hours)</strong>.';
+    } else {
+        badge.textContent = 'Max 1 Week';
+        badge.className = 'px-2 py-0.5 rounded-full bg-[#6B4E3D] text-white text-[10px] font-semibold uppercase';
+        note.innerHTML = 'Non-perishable items may be scheduled for pickup within <strong>1 week (7 days)</strong>.';
+    }
+
     renderRewardPinPresets();
     setModalFulfillment('pickup');
     redeemModal.classList.remove('hidden');

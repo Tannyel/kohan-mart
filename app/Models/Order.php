@@ -15,6 +15,8 @@ class Order extends Model
         'order_number',
         'status',
         'cancelled_by',
+        'cancellation_reason',
+        'cancellation_explanation',
         'fulfillment_type',
         'payment_method',
         'is_paid',

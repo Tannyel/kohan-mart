@@ -32,14 +32,30 @@ class CheckoutController extends Controller
             return redirect()->route('cart.index')->with('error', 'Your basket is empty.');
         }
 
+        $cartProducts = Product::whereIn('id', array_keys($cart))->get();
+        $hasPerishables = $cartProducts->contains(function ($p) {
+            return in_array(strtolower(trim((string) $p->category)), ['foods', 'drinks'], true);
+        });
+        $maxPickupAt = $hasPerishables ? now()->addDay() : now()->addDays(7);
+        $limitLabel = $hasPerishables
+            ? '1 day (24 hours) for orders containing Foods or Drinks'
+            : '1 week (7 days)';
+
         $validated = $request->validate([
             'fulfillment_type' => ['required', 'in:pickup,delivery'],
-            'pickup_scheduled_at' => ['required_if:fulfillment_type,pickup', 'nullable', 'date', 'after:now'],
+            'pickup_scheduled_at' => [
+                'required_if:fulfillment_type,pickup',
+                'nullable',
+                'date',
+                'after:now',
+                'before_or_equal:' . $maxPickupAt->format('Y-m-d H:i:s'),
+            ],
             'delivery_address' => ['required_if:fulfillment_type,delivery', 'nullable', 'string', 'min:5', 'max:255'],
             'delivery_recipient_phone' => ['required_if:fulfillment_type,delivery', 'nullable', 'string', 'min:7', 'max:30'],
             'points_to_use' => ['nullable', 'numeric', 'min:0'],
         ], [
             'pickup_scheduled_at.required_if' => 'Please select your scheduled pickup date and time.',
+            'pickup_scheduled_at.before_or_equal' => "Store pickup must be scheduled within {$limitLabel}.",
             'delivery_address.required_if' => 'Please enter your delivery address.',
             'delivery_recipient_phone.required_if' => 'Please enter a mobile number for the delivery rider.',
         ]);
@@ -219,7 +235,7 @@ class CheckoutController extends Controller
         return redirect($redirectUrl)->with('success', $successMessage);
     }
 
-    public function cancel(Order $order)
+    public function cancel(Request $request, Order $order)
     {
         if ($order->user_id !== Auth::id()) {
             abort(403);
@@ -232,7 +248,23 @@ class CheckoutController extends Controller
             );
         }
 
-        DB::transaction(function () use ($order) {
+        $reasonData = $request->validate([
+            'cancellation_reason' => ['required', 'string', 'max:120'],
+            'custom_reason' => ['nullable', 'required_if:cancellation_reason,Other', 'string', 'max:120'],
+            'cancellation_explanation' => ['required', 'string', 'min:5', 'max:500'],
+        ], [
+            'cancellation_reason.required' => 'Please select a reason for cancelling this order.',
+            'custom_reason.required_if' => 'Please specify your custom cancellation reason.',
+            'cancellation_explanation.required' => 'Please provide a brief explanation for your cancellation.',
+            'cancellation_explanation.min' => 'Please provide at least 5 characters explaining your cancellation.',
+        ]);
+
+        $finalReason = $reasonData['cancellation_reason'] === 'Other'
+            ? trim($reasonData['custom_reason'])
+            : $reasonData['cancellation_reason'];
+        $finalExplanation = trim($reasonData['cancellation_explanation']);
+
+        DB::transaction(function () use ($order, $finalReason, $finalExplanation) {
             $order->load(['items.product', 'user']);
 
             foreach ($order->items as $item) {
@@ -269,6 +301,8 @@ class CheckoutController extends Controller
             $order->update([
                 'status' => 'cancelled',
                 'cancelled_by' => 'customer',
+                'cancellation_reason' => $finalReason,
+                'cancellation_explanation' => $finalExplanation,
                 'courier_status' => $order->isDelivery() ? 'cancelled' : null,
                 'refunded_minor' => $order->total_minor,
                 'delivery_fee_forfeited' => false,
@@ -278,7 +312,7 @@ class CheckoutController extends Controller
             ActivityLog::create([
                 'user_id' => Auth::id(),
                 'action' => 'Customer Cancelled Order',
-                'details' => "Customer cancelled {$order->order_number} prior to dispatch. Full refund (₱" . number_format($order->total_minor / 100, 2) . ") & stock restored.",
+                'details' => "Customer cancelled {$order->order_number} ({$finalReason}: {$finalExplanation}). Full refund (₱" . number_format($order->total_minor / 100, 2) . ") & stock restored.",
             ]);
         });
 

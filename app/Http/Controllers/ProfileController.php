@@ -59,13 +59,26 @@ class ProfileController extends Controller
 
     public function redeemProduct(Request $request, Product $product, DeliveryService $deliveryService)
     {
+        $isPerishable = in_array(strtolower(trim((string) $product->category)), ['foods', 'drinks'], true);
+        $maxPickupAt = $isPerishable ? now()->addDay() : now()->addDays(7);
+        $limitLabel = $isPerishable
+            ? '1 day (24 hours) for Foods and Drinks items'
+            : '1 week (7 days)';
+
         $validated = $request->validate([
             'fulfillment_type' => ['required', 'in:pickup,delivery'],
-            'pickup_scheduled_at' => ['required_if:fulfillment_type,pickup', 'nullable', 'date', 'after:now'],
+            'pickup_scheduled_at' => [
+                'required_if:fulfillment_type,pickup',
+                'nullable',
+                'date',
+                'after:now',
+                'before_or_equal:' . $maxPickupAt->format('Y-m-d H:i:s'),
+            ],
             'delivery_address' => ['required_if:fulfillment_type,delivery', 'nullable', 'string', 'min:5', 'max:255'],
             'delivery_recipient_phone' => ['required_if:fulfillment_type,delivery', 'nullable', 'string', 'min:7', 'max:30'],
         ], [
             'pickup_scheduled_at.required_if' => 'Please select your scheduled pickup date and time.',
+            'pickup_scheduled_at.before_or_equal' => "Store pickup must be scheduled within {$limitLabel}.",
             'delivery_address.required_if' => 'Please enter your delivery address.',
             'delivery_recipient_phone.required_if' => 'Please enter a mobile number for the delivery rider.',
         ]);
@@ -122,11 +135,11 @@ class ProfileController extends Controller
                 'courier_driver_plate' => $courierData['courier_driver_plate'] ?? null,
                 'courier_driver_phone' => $courierData['courier_driver_phone'] ?? null,
                 'courier_share_link' => $courierData['courier_share_link'] ?? null,
-                'subtotal_minor' => 0, // Item itself is free with points
+                'subtotal_minor' => 0,
                 'points_used' => $requiredPoints,
                 'points_discount_minor' => $product->price_minor,
                 'delivery_fee_minor' => $deliveryFeeMinor,
-                'total_minor' => $deliveryFeeMinor, // Only delivery fee is payable if delivery is chosen
+                'total_minor' => $deliveryFeeMinor,
                 'points_earned' => 0,
                 'points_awarded' => true,
                 'stock_returned' => true,

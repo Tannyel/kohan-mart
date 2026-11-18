@@ -81,6 +81,14 @@
             $maxRedeemablePoints = min($walletBalance, $subtotalPesos);
             $earnRate = $user->isBirthdayMonth() ? 0.20 : 0.10;
             $initialFulfillment = old('fulfillment_type', 'pickup');
+
+            $hasPerishables = collect($items)->contains(function ($item) {
+                $cat = strtolower(trim((string) ($item['product']->category ?? '')));
+                return in_array($cat, ['foods', 'drinks'], true);
+            });
+            $maxPickupDatetime = $hasPerishables
+                ? now()->addDay()->format('Y-m-d\TH:i')
+                : now()->addDays(7)->format('Y-m-d\TH:i');
         @endphp
 
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -204,8 +212,8 @@
                                 <span>📅</span>
                                 <span>Scheduled Pickup Date & Time <span class="text-[#9E3B33]">*</span></span>
                             </label>
-                            <span class="px-2 py-0.5 rounded-full bg-[#6B4E3D] text-[#FAF7F2] text-[10px] font-semibold uppercase tracking-wider">
-                                Required
+                            <span class="px-2 py-0.5 rounded-full {{ $hasPerishables ? 'bg-[#9E3B33]' : 'bg-[#6B4E3D]' }} text-[#FAF7F2] text-[10px] font-semibold uppercase tracking-wider">
+                                {{ $hasPerishables ? 'Max 1 Day (Perishable)' : 'Max 1 Week' }}
                             </span>
                         </div>
                         <input type="datetime-local"
@@ -213,10 +221,16 @@
                                name="pickup_scheduled_at"
                                value="{{ old('pickup_scheduled_at') }}"
                                min="{{ now()->addMinutes(15)->format('Y-m-d\TH:i') }}"
+                               max="{{ $maxPickupDatetime }}"
                                {{ $initialFulfillment === 'pickup' ? 'required' : '' }}
                                class="w-full px-3.5 py-2.5 rounded-xl border border-[#C69C6D] bg-white text-xs font-semibold text-[#2E2A25] focus:outline-none focus:ring-2 focus:ring-[#6B4E3D]/30 focus:border-[#6B4E3D]">
-                        <p class="text-[11px] text-[#7A4E1D]">
-                            Pick up at <strong>41 Insurance, Project 8, Quezon City</strong> (Open 9:00 AM – 8:00 PM).
+                        <p class="text-[11px] text-[#7A4E1D] leading-relaxed">
+                            @if($hasPerishables)
+                                ⚠️ Your basket contains <strong>Foods or Drinks</strong> — pickup must be scheduled within <strong>24 hours (1 day)</strong> to preserve freshness.
+                            @else
+                                Non-perishable items (<strong>Skincare / Other</strong>) may be scheduled for pickup within <strong>7 days (1 week)</strong>.
+                            @endif
+                            <br>Location: <strong>41 Insurance, Project 8, Quezon City</strong> (9:00 AM – 8:00 PM).
                         </p>
                     </div>
 
@@ -391,7 +405,6 @@
             let hasValidQuote = false;
             let hasStockConflict = false;
             let noticeAutoHideTimer = null;
-            let dismissedEmptyPollWarning = false;
 
             const pointsInput = document.getElementById('pointsInput');
             const useMaxPointsBtn = document.getElementById('useMaxPointsBtn');
@@ -402,7 +415,6 @@
             const liveStockDot = document.getElementById('liveStockDot');
             const liveStockText = document.getElementById('liveStockText');
 
-            // Auto-hide server-rendered banner after 4s
             const serverBanner = document.getElementById('serverErrorBanner');
             if (serverBanner) {
                 setTimeout(() => serverBanner.remove(), 4000);
@@ -436,7 +448,6 @@
                 return '₱' + amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             }
 
-            // --- Customer Custom Pin Presets ---
             function loadCustomPinPresets() {
                 try {
                     const raw = localStorage.getItem(PIN_STORAGE_KEY);
@@ -787,7 +798,6 @@
             function renderStockState(data) {
                 const visibleCardsCount = document.querySelectorAll('[data-cart-item-card]').length;
 
-                // Ignore false "basket is empty" poller response when items are visibly in the DOM
                 if (!data.ok && (!data.items || Object.keys(data.items).length === 0) && visibleCardsCount > 0) {
                     hasStockConflict = false;
                     syncSubmitButtonState();
@@ -824,7 +834,6 @@
                 if (!data.ok) {
                     const wasAlreadyConflicted = hasStockConflict;
                     hasStockConflict = true;
-                    // Only pop up the 4s notice when a new stock conflict occurs (don't re-open if dismissed)
                     if (!wasAlreadyConflicted) {
                         showCheckoutNotice(data.message, 4000);
                     }

@@ -241,34 +241,52 @@
             <div class="p-6 overflow-y-auto space-y-4 text-xs text-[#4A3B31] leading-relaxed">
                 <div class="bg-[#F3EDE0] border border-[#E2D8C3] rounded-2xl p-4">
                     <p class="font-semibold text-[#2E2A25]">
-                        Welcome to Kohan Mart (湖畔マート). To keep inventory accurate and ensure smooth express pickup for all shoppers, please observe the following store policies when ordering through our system:
+                        Welcome to Kohan Mart (湖畔マート). To maintain inventory accuracy, food safety, and reliable same-day fulfillment, all registered members and shoppers must comply with the following formal store Terms & Regulations:
                     </p>
                 </div>
 
                 <div class="space-y-3">
                     <div class="bg-white rounded-2xl border border-[#E2D8C3] p-4 space-y-1">
-                        <h4 class="font-bold text-sm text-[#3F5A45]">1. 100% Online Payment & Instant Stock Locking</h4>
-                        <p>All online pickup reservations require full online payment at checkout. Inventory is locked atomically at the exact microsecond payment completes—adding items to your basket alone does not hold stock if another customer completes checkout first.</p>
+                        <h4 class="font-bold text-sm text-[#3F5A45]">1. Account Eligibility, Security & Binding Agreement</h4>
+                        <p>By registering an account, signing in, or placing an order on the Kohan Mart (湖畔マート) digital storefront, you confirm that all registration details, contact numbers, and delivery addresses provided are accurate and truthful. These Terms & Regulations constitute a binding service agreement between the customer and Kohan Mart.</p>
                     </div>
 
                     <div class="bg-white rounded-2xl border border-[#E2D8C3] p-4 space-y-1">
-                        <h4 class="font-bold text-sm text-[#3F5A45]">2. Store Pickup Schedule & Location</h4>
-                        <p>Orders must be picked up at <strong>41 Insurance, Project 8, Quezon City</strong> during store operating hours (<strong>9:00 AM – 8:00 PM</strong>) on your selected pickup date and time. Please present your <strong>Order Number</strong> or <strong>Official Digital Receipt</strong> at the counter.</p>
+                        <h4 class="font-bold text-sm text-[#3F5A45]">2. 100% Online Payment & Atomic Inventory Allocation</h4>
+                        <p>All online reservations and courier delivery orders require full online payment at checkout. Inventory is locked atomically at the exact microsecond payment settles—placing items into a shopping basket alone does not reserve stock if another customer completes checkout first.</p>
                     </div>
 
                     <div class="bg-white rounded-2xl border border-[#E2D8C3] p-4 space-y-1">
-                        <h4 class="font-bold text-sm text-[#3F5A45]">3. Order Cancellations & Refunds</h4>
-                        <p>Once an order is marked <strong>Ready For Pickup</strong> or <strong>Completed</strong>, self-service cancellation is closed. If an active order is cancelled prior to preparation, reserved stock is returned to the catalog and redeemed loyalty points are refunded to your wallet.</p>
+                        <h4 class="font-bold text-sm text-[#3F5A45]">3. Store Pickup Deadlines & Perishable Item Window</h4>
+                        <p>Store pickup orders must be claimed at <strong>41 Insurance, Project 8, Quezon City</strong> during operating hours (<strong>9:00 AM – 8:00 PM</strong>) by presenting your <strong>Order Number</strong> or <strong>Official Digital Receipt</strong>:</p>
+                        <ul class="list-disc pl-5 pt-1 space-y-0.5 text-[#5C4E42]">
+                            <li><strong>Foods & Drinks (Perishables):</strong> Strictly must be scheduled and claimed within <strong>1 day (24 hours)</strong> of order placement to guarantee freshness and food safety.</li>
+                            <li><strong>Skincare & Non-Perishable Goods:</strong> Must be scheduled and claimed within <strong>1 week (7 calendar days)</strong> of order placement.</li>
+                        </ul>
                     </div>
 
                     <div class="bg-white rounded-2xl border border-[#E2D8C3] p-4 space-y-1">
-                        <h4 class="font-bold text-sm text-[#3F5A45]">4. Loyalty Points & Rewards Policy</h4>
-                        <p>Members earn <strong>10% back in points</strong> (or <strong>20% during their birthday month</strong>) on net online payments (<code>1 pt = ₱1.00</code>). Points have no cash conversion value and may be redeemed at checkout or in the Rewards Catalog.</p>
+                        <h4 class="font-bold text-sm text-[#3F5A45]">4. Same-Day Lalamove Courier Dispatch & Delivery</h4>
+                        <p>Delivery orders are fulfilled via third-party courier partners (Lalamove) from our Project 8 branch. Customers must ensure a recipient is reachable at the provided mobile number and pin location upon rider arrival.</p>
                     </div>
 
                     <div class="bg-white rounded-2xl border border-[#E2D8C3] p-4 space-y-1">
-                        <h4 class="font-bold text-sm text-[#3F5A45]">5. Authentic Goods & Perishable Care</h4>
-                        <p>All Japanese snacks, beverages, ramen, and skincare items are inspected prior to counter handoff. Please inspect perishable or temperature-sensitive items upon pickup at the store counter.</p>
+                        <h4 class="font-bold text-sm text-[#3F5A45]">5. Order Cancellations, Mandatory Reason & Non-Refundable Delivery Fee</h4>
+                        <p>Every order cancellation—whether initiated by the customer or store administrator—requires selecting a valid cancellation reason and providing a written explanation for audit and quality assurance:</p>
+                        <ul class="list-disc pl-5 pt-1 space-y-0.5 text-[#5C4E42]">
+                            <li><strong>Prior to Rider Assignment / Preparation:</strong> Eligible for a 100% full refund of the item subtotal, delivery fee (if applicable), and redeemed loyalty points.</li>
+                            <li><strong>After Lalamove Rider Assignment / Dispatch:</strong> Self-service cancellation is locked. If an order is cancelled after a rider has already been assigned or dispatched, <strong>only the item payment amount is reimbursed—the Lalamove delivery fee is strictly non-reimbursable</strong> as courier dispatch costs have already been incurred.</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-white rounded-2xl border border-[#E2D8C3] p-4 space-y-1">
+                        <h4 class="font-bold text-sm text-[#3F5A45]">6. Loyalty Points & Rewards Program</h4>
+                        <p>Registered members earn <strong>10% back in loyalty points</strong> (or <strong>20% during their registered birthday month</strong>) on net online payments (<code>1 pt = ₱1.00</code>). Points are non-transferable, carry no cash conversion value, and are automatically reversed if the qualifying order is cancelled.</p>
+                    </div>
+
+                    <div class="bg-white rounded-2xl border border-[#E2D8C3] p-4 space-y-1">
+                        <h4 class="font-bold text-sm text-[#3F5A45]">7. Product Authenticity, Inspection & Liability</h4>
+                        <p>All Japanese snacks, beverages, ramen, and skincare products are inspected prior to counter handoff or courier dispatch. Customers are advised to inspect perishable, fragile, or temperature-sensitive items immediately upon receipt. Kohan Mart reserves the right to cancel and refund any order affected by unforeseen stock discrepancies, force majeure, or courier service disruptions.</p>
                     </div>
                 </div>
             </div>
